@@ -1,0 +1,10 @@
+pnpm-lock.yaml
+**/dist/
+**/coverage/
+packages/client/public/
+assets/
+*.md
+*.yaml
+*.yml
+node_modules
+package-lock.json
