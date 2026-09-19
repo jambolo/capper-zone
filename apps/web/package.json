@@ -1,0 +1,22 @@
+{
+  "name": "web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage --coverage.reporter=lcov",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "docs": "typedoc src/index.ts"
+  },
+  "keywords": [],
+  "author": "John Bolton <jambolo@users.noreply.github.com> (https://jambolo.github.io)",
+  "license": "MIT",
+  "packageManager": "pnpm@10.20.0"
+}
