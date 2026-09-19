@@ -170,10 +170,14 @@ vite.config.ts.timestamp-*
 dist/
 
 # TypeDoc output
-docs/
+apps/web/docs/
 
 # Claude AI
 .claude/
 
 # VS Code
 .vscode/
+
+# Generated league data (produced by history-importer and elo-ratings)
+data/
+data-*/

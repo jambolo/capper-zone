@@ -2,7 +2,7 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
-  "description": "",
+  "description": "Browser app that predicts game results from published Elo seeds and this season's results",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,18 +13,32 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "docs": "typedoc src/index.ts"
+    "docs": "typedoc src/index.ts",
+    "backtest": "tsx scripts/backtest.ts"
   },
   "keywords": [],
   "author": "John Bolton <jambolo@users.noreply.github.com> (https://jambolo.github.io)",
   "license": "MIT",
-  "packageManager": "pnpm@10.20.0",
+  "packageManager": "pnpm@12.4.2",
+  "dependencies": {
+    "csv-parse": "^7.0.2",
+    "luxon": "^3.7.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/luxon": "^3.7.5",
     "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^5.0.1",
     "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.9.8",
+    "tsx": "^4.23.13",
     "typedoc": "^0.28.20",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0",

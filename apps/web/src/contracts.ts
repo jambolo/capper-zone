@@ -1,0 +1,165 @@
+import { z } from 'zod';
+import { DateTime } from 'luxon';
+
+const finite = z.number().finite();
+const phase = z.enum(['regular', 'postseason']);
+export const teamSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  location: z.string().min(1),
+  eras: z
+    .array(
+      z.object({
+        from_season: z.number().int(),
+        through_season: z.number().int().nullable(),
+        name: z.string().min(1),
+        location: z.string().min(1),
+        source_ids: z.array(z.string().min(1)).min(1),
+      }),
+    )
+    .min(1),
+});
+const eloSchema = z.object({
+  initial: finite,
+  scale: finite.positive(),
+  k: finite.positive(),
+  home_advantage: finite,
+  offseason_regression: finite.min(0).max(1),
+});
+export const configSchema = z
+  .object({
+    schema_version: z.literal(1),
+    id: z.string().regex(/^[a-zA-Z0-9-]+$/),
+    name: z.string().min(1),
+    history_start: z.number().int().min(1900).max(2200),
+    season_rollover_month: z.number().int().min(1).max(12),
+    source: z.object({
+      kind: z.enum(['nflverse-csv', 'canonical-json']),
+      url: z.url().refine((s) => s.startsWith('https://')),
+    }),
+    teams: z.array(teamSchema).min(2),
+    aliases: z.record(z.string(), z.string()),
+    ties_allowed_in: z.array(phase),
+    elo: eloSchema,
+    bayesian: z.object({
+      prior_sd_elo: finite.positive(),
+      tie_prior_games: finite.positive(),
+      tie_prior_rate: finite.gt(0).lt(1),
+    }),
+  })
+  .superRefine((c, ctx) => {
+    const ids = new Set(c.teams.map((t) => t.id));
+    if (ids.size !== c.teams.length) ctx.addIssue({ code: 'custom', message: 'Duplicate team ids' });
+    for (const [from, to] of Object.entries(c.aliases)) {
+      if (!ids.has(to) || (ids.has(from) && from !== to)) ctx.addIssue({ code: 'custom', message: 'Invalid team alias' });
+    }
+    for (const team of c.teams) {
+      const fail = (message: string) => ctx.addIssue({ code: 'custom', message: `${team.id}: ${message}` });
+      if (team.eras[0].from_season > c.history_start) fail('Identity history starts too late');
+      team.eras.forEach((era, i) => {
+        if (era.through_season !== null && era.through_season < era.from_season) fail('Invalid identity range');
+        if (era.source_ids.some((id) => (c.aliases[id] ?? id) !== team.id))
+          fail('Historical abbreviation points to another franchise');
+        const next = team.eras[i + 1];
+        if (next) {
+          if (era.through_season !== next.from_season - 1) fail('Identity eras overlap or have a gap');
+        } else if (era.through_season !== null || era.name !== team.name || era.location !== team.location)
+          fail('Latest identity does not match current team metadata');
+      });
+    }
+  });
+export type LeagueConfig = z.infer<typeof configSchema>;
+export const gameSchema = z.object({
+  id: z.string().min(1),
+  league: z.string(),
+  season: z.number().int(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((s) => DateTime.fromISO(s).isValid),
+  time: z
+    .string()
+    .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+    .nullable(),
+  timezone: z.string().refine((s) => DateTime.now().setZone(s).isValid),
+  phase,
+  round: z.string(),
+  week: z.number().int().positive(),
+  home_team: z.string(),
+  away_team: z.string(),
+  neutral: z.boolean(),
+  home_source_id: z.string().min(1),
+  away_source_id: z.string().min(1),
+  result: z.enum(['home_win', 'away_win', 'tie']).nullable(),
+});
+export type Game = z.infer<typeof gameSchema>;
+export const gameFileSchema = z.object({
+  schema_version: z.literal(1),
+  league: z.string(),
+  fetched_at: z.iso.datetime({ offset: true }),
+  source_url: z.string(),
+  from_season: z.number().int(),
+  through_season: z.number().int(),
+  teams: z.array(teamSchema),
+  games: z.array(gameSchema),
+});
+export type GameFile = z.infer<typeof gameFileSchema>;
+export const seedSchema = z.object({
+  schema_version: z.literal(1),
+  league: z.string(),
+  target_season: z.number().int(),
+  through_season: z.number().int(),
+  generated_at: z.iso.datetime({ offset: true }),
+  history_sha256: z.string().length(64),
+  config_sha256: z.string().length(64),
+  settings: eloSchema,
+  completed_games: z.number().int().nonnegative(),
+  tied_games: z.number().int().nonnegative(),
+  tie_weight: finite.positive(),
+  ratings: z.array(
+    z.object({
+      team: z.string(),
+      elo: finite,
+      games: z.number().int().nonnegative(),
+    }),
+  ),
+});
+export type EloSeed = z.infer<typeof seedSchema>;
+
+/** Dates, times and ids are ASCII, so code-unit order matches the byte order used elsewhere. */
+const order = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+export function validateGames(input: unknown, config: LeagueConfig): Game[] {
+  const games = z.array(gameSchema).parse(input);
+  const teams = new Set(config.teams.map((t) => t.id));
+  const seen = new Set<string>();
+  for (const g of games) {
+    if (seen.has(g.id)) throw new Error(`Duplicate game id: ${g.id}`);
+    seen.add(g.id);
+    if (g.league !== config.id || !teams.has(g.home_team) || !teams.has(g.away_team) || g.home_team === g.away_team)
+      throw new Error(`Invalid league or teams for ${g.id}`);
+    for (const [id, source] of [
+      [g.home_team, g.home_source_id],
+      [g.away_team, g.away_source_id],
+    ]) {
+      if ((config.aliases[source] ?? source) !== id) throw new Error(`Source id does not match franchise: ${g.id}`);
+      const era = teamIdentity(config, id, g.season);
+      if (config.source.kind === 'nflverse-csv' && !era.source_ids.includes(source))
+        throw new Error(`Source abbreviation invalid for season ${g.season}: ${g.id}`);
+    }
+    if (g.result === 'tie' && !config.ties_allowed_in.includes(g.phase)) throw new Error(`Tie prohibited for ${g.id}`);
+  }
+  return games.sort(
+    (a, b) => a.season - b.season || order(a.date, b.date) || order(a.time ?? '', b.time ?? '') || order(a.id, b.id),
+  );
+}
+export function currentSeason(config: LeagueConfig, now = new Date()): number {
+  return now.getUTCFullYear() - Number(now.getUTCMonth() + 1 < config.season_rollover_month);
+}
+export function teamIdentity(config: LeagueConfig, id: string, season: number) {
+  const era = config.teams
+    .find((t) => t.id === id)
+    ?.eras.find((e) => season >= e.from_season && (e.through_season === null || season <= e.through_season));
+  if (!era) throw new Error(`No historical identity for ${id} in ${season}`);
+  return era;
+}

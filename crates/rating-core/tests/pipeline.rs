@@ -1,0 +1,120 @@
+use rating_core::*;
+
+fn config() -> LeagueConfig {
+    serde_json::from_str(include_str!("../../../config/nfl.json")).unwrap()
+}
+fn csv() -> &'static str {
+    "game_id,season,game_type,week,gameday,gametime,away_team,away_score,home_team,home_score,location\na,2002,REG,1,2002-09-01,13:00,SD,10,OAK,10,Neutral\nb,2002,REG,2,2002-09-08,,STL,,SEA,,Home\nc,2002,PRE,1,2002-08-01,13:00,SEA,7,SF,3,Home\n"
+}
+#[test]
+fn normalizes_franchises_ties_and_unplayed_games() {
+    let games = parse_source(csv(), &config()).unwrap();
+    assert_eq!(games.len(), 2);
+    assert_eq!(games[0].home_team, "LV");
+    assert_eq!(games[0].away_team, "LAC");
+    assert_eq!(games[0].result, Some(Outcome::Tie));
+    assert!(games[0].neutral);
+    assert_eq!(games[1].away_team, "LAR");
+    assert_eq!(games[1].result, None);
+}
+#[test]
+fn rejects_duplicate_games_bad_dates_and_one_missing_score() {
+    let cfg = config();
+    let mut games = parse_source(csv(), &cfg).unwrap();
+    games.push(games[0].clone());
+    assert!(validate_games(&mut games, &cfg).is_err());
+    assert!(parse_source(&csv().replace("OAK,10", "OAK,"), &cfg).is_err());
+    assert!(parse_source(&csv().replace("2002-09-01", "2002-02-30"), &cfg).is_err());
+}
+#[test]
+fn seeds_are_chronological_tie_aware_and_regressed_exactly_once() {
+    let cfg = config();
+    let mut games = parse_source(csv(), &cfg).unwrap();
+    games[0].result = Some(Outcome::HomeWin);
+    let history = GameFile {
+        schema_version: 1,
+        league: "nfl".into(),
+        fetched_at: "2026-01-01T00:00:00Z".into(),
+        source_url: cfg.source.url.clone(),
+        from_season: 2002,
+        through_season: 2002,
+        teams: cfg.teams.clone(),
+        games: games.clone(),
+    };
+    let bytes = serde_json::to_vec(&history).unwrap();
+    let seed = build_seed(&history, &bytes, &cfg, b"config", 2003).unwrap();
+    let lv = seed.ratings.iter().find(|t| t.team == "LV").unwrap();
+    assert!((lv.elo - (1500.0 + 10.0 * 2.0 / 3.0)).abs() < 1e-9);
+    assert_eq!(seed.completed_games, 1); // Scheduled game is not an observation.
+    assert_eq!(seed.audit[0].home_before, 1500.0);
+    assert_eq!(seed.audit[0].home_after, 1510.0);
+    assert!(seed.tie_weight > 0.0);
+    let mut reversed = history.clone();
+    reversed.games.reverse();
+    let again = build_seed(&reversed, &bytes, &cfg, b"config", 2003).unwrap();
+    assert_eq!(seed.ratings[0].elo, again.ratings[0].elo);
+    assert!(build_seed(&history, &bytes, &cfg, b"config", 2004).is_err());
+    let mut leaked = history;
+    leaked.games[0].season = 2003;
+    assert!(build_seed(&leaked, &bytes, &cfg, b"config", 2003).is_err());
+}
+#[test]
+fn postseason_ties_are_invalid() {
+    let cfg = config();
+    let mut games = parse_source(csv(), &cfg).unwrap();
+    games[0].phase = "postseason".into();
+    assert!(validate_games(&mut games, &cfg).is_err());
+}
+#[test]
+fn generic_json_adapter_has_no_nfl_team_count_dependency() {
+    let mut cfg = config();
+    cfg.id = "demo".into();
+    cfg.source.kind = "canonical-json".into();
+    let mut games = parse_source(csv(), &config()).unwrap();
+    for g in &mut games {
+        g.league = "demo".into();
+    }
+    let input = serde_json::json!({"schema_version":1,"league":"demo","games":games});
+    assert_eq!(parse_source(&input.to_string(), &cfg).unwrap().len(), 2);
+}
+
+#[test]
+fn identity_ranges_track_names_and_locations() {
+    let cfg = config();
+    assert_eq!(cfg.identity("LV", 2019).unwrap().name, "Oakland Raiders");
+    assert_eq!(cfg.identity("LV", 2020).unwrap().name, "Las Vegas Raiders");
+    assert_eq!(cfg.identity("LAC", 2016).unwrap().location, "San Diego");
+    assert_eq!(cfg.identity("LAC", 2017).unwrap().location, "Los Angeles");
+    assert_eq!(cfg.identity("WAS", 2021).unwrap().name, "Washington Football Team");
+    assert_eq!(cfg.identity("WAS", 2022).unwrap().name, "Washington Commanders");
+    let mut bad = cfg.clone();
+    bad.teams.iter_mut().find(|t| t.id == "LV").unwrap().eras[0].through_season = Some(2020);
+    assert!(bad.validate().is_err());
+}
+
+#[test]
+fn relocation_preserves_one_rating_history_and_original_source_ids() {
+    let mut cfg = config();
+    cfg.history_start = 2019;
+    let input = "game_id,season,game_type,week,gameday,gametime,away_team,away_score,home_team,home_score,location\na,2019,REG,1,2019-09-01,13:00,SEA,10,OAK,20,Neutral\nb,2020,REG,1,2020-09-01,13:00,SEA,10,LV,20,Neutral\n";
+    let games = parse_source(input, &cfg).unwrap();
+    assert_eq!(games[0].home_team, games[1].home_team);
+    assert_eq!(games[0].home_source_id, "OAK");
+    assert_eq!(games[1].home_source_id, "LV");
+    let history = GameFile {
+        schema_version: 1,
+        league: "nfl".into(),
+        fetched_at: "2021-03-01T00:00:00Z".into(),
+        source_url: cfg.source.url.clone(),
+        from_season: 2019,
+        through_season: 2020,
+        teams: cfg.teams.clone(),
+        games,
+    };
+    let output = build_seed(&history, b"history", &cfg, b"config", 2021).unwrap();
+    let team = output.ratings.iter().find(|t| t.team == "LV").unwrap();
+    assert_eq!(team.games, 2);
+    assert!(team.elo > 1500.0);
+    assert!(output.audit[1].home_before > 1500.0); // Rename did not reset the rating.
+    assert!(parse_source(&input.replace("OAK", "LV"), &cfg).is_err());
+}

@@ -1,0 +1,93 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'Cargo.toml'
+      - 'apps/web/package.json'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-rust:
+    name: Build & Test (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --workspace --all-targets
+      - name: Test
+        run: cargo test --workspace
+
+  build-web:
+    name: Build & Test (Web)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6.1.0
+        with:
+          package_json_file: apps/web/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Compile
+        run: pnpm build
+      - name: Test
+        run: pnpm test
+
+  release:
+    name: Tag releases
+    needs: [build-rust, build-web]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-get
+        run: cargo install cargo-get
+      - name: Extract versions
+        id: get_versions
+        run: |
+          # The CLIs share [workspace.package] version; the web app versions independently.
+          # Tags are prefixed so equal version numbers don't collide.
+          CLI_TAG="cli-v$(cargo get workspace.package.version)"
+          WEB_TAG="web-v$(node -p "require('./apps/web/package.json').version")"
+          echo "tags=$CLI_TAG $WEB_TAG" >> "$GITHUB_OUTPUT"
+          echo "Tags: $CLI_TAG $WEB_TAG"
+      - name: Create and push missing tags
+        id: tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          CREATED=""
+          for TAG in ${{ steps.get_versions.outputs.tags }}; do
+            if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "Tag $TAG already exists"
+            else
+              git tag "$TAG"
+              git push origin "$TAG"
+              CREATED="$CREATED $TAG"
+            fi
+          done
+          echo "created=${CREATED# }" >> "$GITHUB_OUTPUT"
+      - name: Merge master into develop
+        if: steps.tag.outputs.created != ''
+        run: |
+          git fetch origin develop
+          git checkout develop
+          git merge origin/master --no-ff -m "Merge master into develop after release ${{ steps.tag.outputs.created }}"
+          git push origin develop

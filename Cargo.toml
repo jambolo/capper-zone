@@ -1,8 +1,23 @@
 [workspace]
 resolver = "3"
-members = ["apps/cli-one", "apps/cli-two"]
+members = ["apps/history-importer", "apps/elo-ratings", "crates/rating-core"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+
+[workspace.dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+csv = "1"
+fs2 = "0.4"
+# 0.13 split the old `rustls-tls-native-roots` feature: rustls for the TLS backend,
+# rustls-native-certs to verify against the operating system trust store.
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls", "rustls-native-certs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.11"
+tempfile = "3"
+rating-core = { path = "crates/rating-core" }

@@ -1,0 +1,63 @@
+name: Pages
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+  schedule:
+    # Rebuild so the published Elo seeds stay current after each NFL season rolls over.
+    - cron: '17 9 * * 2'
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v6.1.0
+        with:
+          package_json_file: apps/web/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      # The browser app reads these as static assets; they are generated, never committed.
+      - name: Generate league data
+        run: |
+          cargo run --release -p history-importer
+          cargo run --release -p elo-ratings
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+      - name: Build
+        run: pnpm build
+        working-directory: apps/web
+        env:
+          VITE_BASE: ${{ format('/{0}/', github.event.repository.name) }}
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/web/dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

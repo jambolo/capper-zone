@@ -1,0 +1,598 @@
+{
+  "schema_version": 1,
+  "id": "nfl",
+  "name": "NFL",
+  "history_start": 2002,
+  "season_rollover_month": 3,
+  "source": {
+    "kind": "nflverse-csv",
+    "url": "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv"
+  },
+  "teams": [
+    {
+      "id": "ARI",
+      "name": "Arizona Cardinals",
+      "location": "Arizona",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Arizona Cardinals",
+          "location": "Arizona",
+          "source_ids": [
+            "ARI"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ATL",
+      "name": "Atlanta Falcons",
+      "location": "Atlanta",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Atlanta Falcons",
+          "location": "Atlanta",
+          "source_ids": [
+            "ATL"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BAL",
+      "name": "Baltimore Ravens",
+      "location": "Baltimore",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Baltimore Ravens",
+          "location": "Baltimore",
+          "source_ids": [
+            "BAL"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BUF",
+      "name": "Buffalo Bills",
+      "location": "Buffalo",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Buffalo Bills",
+          "location": "Buffalo",
+          "source_ids": [
+            "BUF"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CAR",
+      "name": "Carolina Panthers",
+      "location": "Carolina",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Carolina Panthers",
+          "location": "Carolina",
+          "source_ids": [
+            "CAR"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CHI",
+      "name": "Chicago Bears",
+      "location": "Chicago",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Chicago Bears",
+          "location": "Chicago",
+          "source_ids": [
+            "CHI"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CIN",
+      "name": "Cincinnati Bengals",
+      "location": "Cincinnati",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Cincinnati Bengals",
+          "location": "Cincinnati",
+          "source_ids": [
+            "CIN"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CLE",
+      "name": "Cleveland Browns",
+      "location": "Cleveland",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Cleveland Browns",
+          "location": "Cleveland",
+          "source_ids": [
+            "CLE"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DAL",
+      "name": "Dallas Cowboys",
+      "location": "Dallas",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Dallas Cowboys",
+          "location": "Dallas",
+          "source_ids": [
+            "DAL"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DEN",
+      "name": "Denver Broncos",
+      "location": "Denver",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Denver Broncos",
+          "location": "Denver",
+          "source_ids": [
+            "DEN"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DET",
+      "name": "Detroit Lions",
+      "location": "Detroit",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Detroit Lions",
+          "location": "Detroit",
+          "source_ids": [
+            "DET"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "GB",
+      "name": "Green Bay Packers",
+      "location": "Green Bay",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Green Bay Packers",
+          "location": "Green Bay",
+          "source_ids": [
+            "GB"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "HOU",
+      "name": "Houston Texans",
+      "location": "Houston",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Houston Texans",
+          "location": "Houston",
+          "source_ids": [
+            "HOU"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "IND",
+      "name": "Indianapolis Colts",
+      "location": "Indianapolis",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Indianapolis Colts",
+          "location": "Indianapolis",
+          "source_ids": [
+            "IND"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "JAX",
+      "name": "Jacksonville Jaguars",
+      "location": "Jacksonville",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Jacksonville Jaguars",
+          "location": "Jacksonville",
+          "source_ids": [
+            "JAX",
+            "JAC"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "KC",
+      "name": "Kansas City Chiefs",
+      "location": "Kansas City",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Kansas City Chiefs",
+          "location": "Kansas City",
+          "source_ids": [
+            "KC"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LAC",
+      "name": "Los Angeles Chargers",
+      "location": "Los Angeles",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": 2016,
+          "name": "San Diego Chargers",
+          "location": "San Diego",
+          "source_ids": [
+            "SD"
+          ]
+        },
+        {
+          "from_season": 2017,
+          "through_season": null,
+          "name": "Los Angeles Chargers",
+          "location": "Los Angeles",
+          "source_ids": [
+            "LAC"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LAR",
+      "name": "Los Angeles Rams",
+      "location": "Los Angeles",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": 2015,
+          "name": "St. Louis Rams",
+          "location": "St. Louis",
+          "source_ids": [
+            "STL"
+          ]
+        },
+        {
+          "from_season": 2016,
+          "through_season": null,
+          "name": "Los Angeles Rams",
+          "location": "Los Angeles",
+          "source_ids": [
+            "LA",
+            "LAR"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LV",
+      "name": "Las Vegas Raiders",
+      "location": "Las Vegas",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": 2019,
+          "name": "Oakland Raiders",
+          "location": "Oakland",
+          "source_ids": [
+            "OAK"
+          ]
+        },
+        {
+          "from_season": 2020,
+          "through_season": null,
+          "name": "Las Vegas Raiders",
+          "location": "Las Vegas",
+          "source_ids": [
+            "LV"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MIA",
+      "name": "Miami Dolphins",
+      "location": "Miami",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Miami Dolphins",
+          "location": "Miami",
+          "source_ids": [
+            "MIA"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MIN",
+      "name": "Minnesota Vikings",
+      "location": "Minnesota",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Minnesota Vikings",
+          "location": "Minnesota",
+          "source_ids": [
+            "MIN"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "NE",
+      "name": "New England Patriots",
+      "location": "New England",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "New England Patriots",
+          "location": "New England",
+          "source_ids": [
+            "NE"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "NO",
+      "name": "New Orleans Saints",
+      "location": "New Orleans",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "New Orleans Saints",
+          "location": "New Orleans",
+          "source_ids": [
+            "NO"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "NYG",
+      "name": "New York Giants",
+      "location": "New York",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "New York Giants",
+          "location": "New York",
+          "source_ids": [
+            "NYG"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "NYJ",
+      "name": "New York Jets",
+      "location": "New York",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "New York Jets",
+          "location": "New York",
+          "source_ids": [
+            "NYJ"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PHI",
+      "name": "Philadelphia Eagles",
+      "location": "Philadelphia",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Philadelphia Eagles",
+          "location": "Philadelphia",
+          "source_ids": [
+            "PHI"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PIT",
+      "name": "Pittsburgh Steelers",
+      "location": "Pittsburgh",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Pittsburgh Steelers",
+          "location": "Pittsburgh",
+          "source_ids": [
+            "PIT"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SEA",
+      "name": "Seattle Seahawks",
+      "location": "Seattle",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Seattle Seahawks",
+          "location": "Seattle",
+          "source_ids": [
+            "SEA"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SF",
+      "name": "San Francisco 49ers",
+      "location": "San Francisco",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "San Francisco 49ers",
+          "location": "San Francisco",
+          "source_ids": [
+            "SF"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TB",
+      "name": "Tampa Bay Buccaneers",
+      "location": "Tampa Bay",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Tampa Bay Buccaneers",
+          "location": "Tampa Bay",
+          "source_ids": [
+            "TB"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TEN",
+      "name": "Tennessee Titans",
+      "location": "Tennessee",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": null,
+          "name": "Tennessee Titans",
+          "location": "Tennessee",
+          "source_ids": [
+            "TEN"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "WAS",
+      "name": "Washington Commanders",
+      "location": "Washington",
+      "eras": [
+        {
+          "from_season": 2002,
+          "through_season": 2019,
+          "name": "Washington Redskins",
+          "location": "Washington",
+          "source_ids": [
+            "WAS",
+            "WSH"
+          ]
+        },
+        {
+          "from_season": 2020,
+          "through_season": 2021,
+          "name": "Washington Football Team",
+          "location": "Washington",
+          "source_ids": [
+            "WAS",
+            "WSH"
+          ]
+        },
+        {
+          "from_season": 2022,
+          "through_season": null,
+          "name": "Washington Commanders",
+          "location": "Washington",
+          "source_ids": [
+            "WAS",
+            "WSH"
+          ]
+        }
+      ]
+    }
+  ],
+  "aliases": {
+    "OAK": "LV",
+    "SD": "LAC",
+    "STL": "LAR",
+    "LA": "LAR",
+    "JAC": "JAX",
+    "WSH": "WAS"
+  },
+  "ties_allowed_in": [
+    "regular"
+  ],
+  "elo": {
+    "initial": 1500,
+    "scale": 400,
+    "k": 20,
+    "home_advantage": 55,
+    "offseason_regression": 0.3333333333333333
+  },
+  "bayesian": {
+    "prior_sd_elo": 150,
+    "tie_prior_games": 100,
+    "tie_prior_rate": 0.005
+  }
+}
