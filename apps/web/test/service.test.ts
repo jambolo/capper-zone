@@ -1,6 +1,8 @@
 import { afterEach, it, expect, vi } from 'vitest';
 import { PredictionService } from '../src/service.ts';
 import { fitPosterior, predict } from '../src/model.ts';
+import * as model from '../src/model.ts';
+import { readSnapshot, snapshotKey } from '../src/snapshot.ts';
 import { memoryStore, type Store } from '../src/storage.ts';
 import { config, configHash, game, historyBytes, seed } from './helpers.ts';
 
@@ -31,7 +33,10 @@ function publish(files: Record<string, string> = {}) {
 const service = (store: Store, fetchSource: () => Promise<string>) =>
   new PredictionService({ config, configHash, dataBase, season: 2026, now, store, fetchSource });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 it('refreshes once per startup, uses each result once, and does not rewrite history or Elo', async () => {
   const { published, requests } = publish();
@@ -79,6 +84,7 @@ it('keeps an obsolete cache until a successful refresh replaces it with the curr
   old.schema_version = 1;
   const saved = JSON.stringify(old);
   store.setItem(cacheKey, saved);
+  store.removeItem(snapshotKey);
   const offline = service(store, () => Promise.reject(new Error('offline')));
   await offline.initialize();
   expect(offline.getState().status).toBe('error');
@@ -89,6 +95,119 @@ it('keeps an obsolete cache until a successful refresh replaces it with the curr
   expect(refreshed.getState().status).toBe('ready');
   expect(refreshed.getState().warning).toContain('Replaced it with a valid download');
   expect(JSON.parse(store.getItem(cacheKey)!).schema_version).toBe(2);
+});
+
+it('restores the fitted model and skips fitting and seed downloads for unchanged normalized data', async () => {
+  const { requests } = publish();
+  const store = memoryStore();
+  const first = service(store, async () => csv);
+  await first.initialize();
+  const fitted = vi.spyOn(model, 'fitPosterior');
+  const progress = vi.fn();
+  requests.length = 0;
+  const rows = csv.trim().split('\n');
+  const second = new PredictionService({
+    config,
+    configHash,
+    dataBase,
+    season: 2026,
+    store,
+    now: () => new Date('2026-09-19T19:00:00Z'),
+    fetchSource: async () => [rows[0], rows[2], rows[1].replace('SF,10', 'SF,11')].join('\n'),
+    onProgress: progress,
+  });
+  await second.initialize();
+  expect(fitted).not.toHaveBeenCalled();
+  expect(requests).toEqual([]);
+  expect(progress.mock.calls).toEqual([['checking']]);
+  expect(second.predict('SEA', 'SF', true, 'regular')).toEqual(first.predict('SEA', 'SF', true, 'regular'));
+  expect(second.getState()).toMatchObject({
+    status: 'ready',
+    cached: false,
+    refreshed_at: now().toISOString(),
+    checked_at: '2026-09-19T19:00:00.000Z',
+  });
+});
+
+it('announces changed data while the old predictions are still available, then commits the new snapshot', async () => {
+  publish();
+  const store = memoryStore();
+  const first = service(store, async () => csv);
+  await first.initialize();
+  const old = first.predict('SEA', 'SF', true, 'regular');
+  const progress: string[] = [];
+  const second = new PredictionService({
+    config,
+    configHash,
+    dataBase,
+    season: 2026,
+    now,
+    store,
+    fetchSource: async () => csv.replace('SF,10,SEA,20', 'SF,30,SEA,20'),
+    onProgress: (phase) => {
+      progress.push(phase);
+      if (phase === 'rebuilding') expect(second.predict('SEA', 'SF', true, 'regular')).toEqual(old);
+    },
+  });
+  await second.initialize();
+  expect(progress).toEqual(['checking', 'rebuilding']);
+  expect(second.predict('SEA', 'SF', true, 'regular').home_win).toBeLessThan(old.home_win);
+  expect(readSnapshot(store)?.file.games[0].result).toBe('away_win');
+});
+
+it('retains the complete previous model and source when a changed-data build fails', async () => {
+  const { published } = publish();
+  const store = memoryStore();
+  const first = service(store, async () => csv);
+  await first.initialize();
+  const saved = store.getItem(snapshotKey);
+  const source = store.getItem(cacheKey);
+  delete published[`${dataBase}/nfl/elo-2026.json`];
+  const second = service(store, async () => csv.replace('SF,10,SEA,20', 'SF,30,SEA,20'));
+  await second.initialize();
+  expect(second.getState()).toMatchObject({ status: 'ready', cached: true });
+  expect(second.getState().warning).toContain('initial ratings could not be loaded');
+  expect(second.predict('SEA', 'SF', true, 'regular')).toEqual(first.predict('SEA', 'SF', true, 'regular'));
+  expect(store.getItem(snapshotKey)).toBe(saved);
+  expect(store.getItem(cacheKey)).toBe(source);
+});
+
+it('rebuilds a corrupt saved model from validated games', async () => {
+  publish();
+  const store = memoryStore();
+  await service(store, async () => csv).initialize();
+  const saved = JSON.parse(store.getItem(snapshotKey)!);
+  saved.model.covariance = [];
+  store.setItem(snapshotKey, JSON.stringify(saved));
+  const fitted = vi.spyOn(model, 'fitPosterior');
+  const second = service(store, async () => csv);
+  await second.initialize();
+  expect(second.getState().status).toBe('ready');
+  expect(fitted).toHaveBeenCalled();
+  expect(readSnapshot(store)).not.toBeNull();
+});
+
+it('defers midnight eligibility invalidation when game data has not changed', async () => {
+  publish();
+  const store = memoryStore();
+  const run = (date: string) =>
+    new PredictionService({
+      config,
+      configHash,
+      dataBase,
+      season: 2026,
+      store,
+      now: () => new Date(date),
+      fetchSource: async () => csv,
+    });
+  const first = run('2026-09-02T01:00:00Z');
+  await first.initialize();
+  expect(first.getState().training_games).toBe(0);
+  const fitted = vi.spyOn(model, 'fitPosterior');
+  const second = run('2026-09-02T12:00:00Z');
+  await second.initialize();
+  expect(second.getState().training_games).toBe(0);
+  expect(fitted).not.toHaveBeenCalled();
 });
 
 it('refuses stale seeds and future leakage while still refreshing the current cache', async () => {

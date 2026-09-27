@@ -9,7 +9,7 @@ describe('Bayesian model', () => {
     const model = fitPosterior(s, [], config),
       row = teamEstimates(model).find((t) => t.id === 'SEA')!;
     expect(row.rating).toBeCloseTo(1700, 10);
-    expect(row.sd).toBeCloseTo(150, 10);
+    expect(row.sd).toBeCloseTo(config.bayesian.prior_sd_elo, 10);
     const p = predict(model, 'SEA', 'SF', true, 'regular');
     expect(p.home_win).toBeGreaterThan(p.away_win);
     expect(p.home_win + p.away_win + p.tie).toBeCloseTo(1, 12);
@@ -36,7 +36,7 @@ describe('Bayesian model', () => {
   });
   it('matches the analytic two-team Hessian for an equal-strength tie', () => {
     const model = fitPosterior(seed(), [game({ result: 'tie' })], config);
-    const v = ((150 * Math.LN10) / 400) ** 2,
+    const v = ((config.bayesian.prior_sd_elo * Math.LN10) / config.elo.scale) ** 2,
       p = 1 / v,
       h = 1 / (2 * (2 + 0.02));
     const determinant = p * p + 2 * p * h;

@@ -40,11 +40,11 @@ export async function readSeed(
   return seed;
 }
 
-/** The browser cache replaces the Node build's on-disk snapshot. It keeps the visible
- * cached-data fallback working when the provider cannot be reached, and it is per-browser:
- * it never substitutes for the published history and Elo files.
+/** Storage stays on the page because workers cannot access localStorage. The same
+ * interface buffers worker changes until the page receives the complete update.
  */
 export interface Store {
+  keys(): string[];
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
@@ -54,14 +54,20 @@ export const browserStore = (): Store | null => {
     const probe = '__probe__';
     localStorage.setItem(probe, probe);
     localStorage.removeItem(probe);
-    return localStorage;
+    return {
+      keys: () => Object.keys(localStorage),
+      getItem: (key) => localStorage.getItem(key),
+      setItem: (key, value) => localStorage.setItem(key, value),
+      removeItem: (key) => localStorage.removeItem(key),
+    };
   } catch {
-    return null; // Private mode or blocked storage: run without a fallback cache.
+    return null; // Private mode or blocked storage: run without a persistent cache.
   }
 };
 export const memoryStore = (): Store => {
   const map = new Map<string, string>();
   return {
+    keys: () => [...map.keys()],
     getItem: (k) => map.get(k) ?? null,
     setItem: (k, v) => void map.set(k, v),
     removeItem: (k) => void map.delete(k),

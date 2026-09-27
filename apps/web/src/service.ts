@@ -1,9 +1,12 @@
 import { DateTime } from 'luxon';
 import { startTimeUtc } from './time.ts';
-import type { EloSeed, Game, GameFile, LeagueConfig } from './contracts.ts';
+import { gameSchema, type EloSeed, type Game, type GameFile, type LeagueConfig } from './contracts.ts';
 import { fitPosterior, predict, teamEstimates, type Posterior, type Prediction } from './model.ts';
 import { download, parseSource, usableResults } from './provider.ts';
 import { browserStore, readCache, readSeed, writeCache, type Store } from './storage.ts';
+import { readSnapshot, writeSnapshot, type ModelSnapshot } from './snapshot.ts';
+
+export type RefreshPhase = 'checking' | 'building' | 'rebuilding';
 
 export type GameView = Game & {
   status: 'completed' | 'scheduled' | 'awaiting_result';
@@ -16,6 +19,7 @@ export type PublicState = {
   league: string;
   season: number;
   refreshed_at: string | null;
+  checked_at: string | null;
   cached: boolean;
   training_games: number;
   historical_games: number;
@@ -44,6 +48,7 @@ export class PredictionService {
       store?: Store | null;
       fetchSource?: typeof download;
       now?: () => Date;
+      onProgress?: (phase: RefreshPhase) => void;
     },
   ) {
     this.config = options.config;
@@ -56,6 +61,7 @@ export class PredictionService {
       league: this.config.name,
       season: this.season,
       refreshed_at: null,
+      checked_at: null,
       cached: false,
       training_games: 0,
       historical_games: 0,
@@ -73,6 +79,9 @@ export class PredictionService {
   getState(): PublicState {
     return this.state;
   }
+  getModel(): Posterior | null {
+    return this.model;
+  }
   predict(home: string, away: string, neutral: boolean, phase: Game['phase']) {
     if (!this.model) throw new Error('Predictions are not ready');
     return predict(this.model, home, away, neutral, phase);
@@ -82,19 +91,27 @@ export class PredictionService {
     const store = this.options.store === undefined ? browserStore() : this.options.store;
     const cacheKey = `game-results-prediction:${this.config.id}:current-${this.season}`;
     const now = (this.options.now ?? (() => new Date()))();
+    const saved = readSnapshot(store);
+    // Input-driven invalidation is intentional; time/configuration/code invalidation is deferred.
+    const snapshot = saved?.file.league === this.config.id && saved.file.from_season === this.season ? saved : null;
+    if (snapshot) {
+      this.model = snapshot.model;
+      this.seed = snapshot.model.seed;
+      this.state = { ...snapshot.state, cached: true };
+    }
     try {
-      // A startup always attempts the current-season refresh, even if the seed needs rebuilding.
-      let cache: GameFile | null = null,
+      this.options.onProgress?.('checking');
+      let cache: GameFile | null = snapshot?.file ?? null,
         cacheProblem = '';
       try {
-        cache = readCache(store, cacheKey, this.config, this.season);
+        cache ??= readCache(store, cacheKey, this.config, this.season);
       } catch (e) {
         cacheProblem = `Existing cache could not be read: ${message(e)}. `;
       }
       let file: GameFile;
       try {
         const text = await (this.options.fetchSource ?? download)(this.config.source.url);
-        const games = parseSource(text, this.config).filter((g) => g.season === this.season);
+        const games = gameSchema.array().parse(parseSource(text, this.config).filter((g) => g.season === this.season));
         if (!games.length) throw new Error(`The source has no games for season ${this.season} yet`);
         if (cache) {
           const incoming = new Map(games.map((g) => [g.id, g]));
@@ -113,15 +130,23 @@ export class PredictionService {
           teams: this.config.teams,
           games,
         };
-        writeCache(store, cacheKey, file);
+        if (snapshot && JSON.stringify(games) === JSON.stringify(snapshot.file.games)) {
+          this.state = { ...snapshot.state, cached: false, warning: null, checked_at: now.toISOString() };
+          writeSnapshot(store, { ...snapshot, state: this.state });
+          return;
+        }
+        if (!snapshot) writeCache(store, cacheKey, file);
         if (cacheProblem) this.state.warning = `${cacheProblem}Replaced it with a valid download.`;
       } catch (e) {
+        if (snapshot) throw e;
         if (!cache) throw new Error(`${cacheProblem}${message(e)}. No valid current-season cache is available.`, { cause: e });
         file = cache;
         this.state.cached = true;
         this.state.warning = `Refresh failed. Using cached data from ${cache.fetched_at}. ${message(e)}`;
       }
+      this.options.onProgress?.(snapshot ? 'rebuilding' : 'building');
       this.state.refreshed_at = file.fetched_at;
+      this.state.checked_at = this.state.cached && !snapshot ? null : now.toISOString();
       try {
         this.seed = await readSeed(
           `${dir}/elo-${this.season}.json`,
@@ -168,7 +193,22 @@ export class PredictionService {
         };
       });
       this.state.status = 'ready';
+      // Commit the source and fitted output only after the complete build succeeds.
+      if (snapshot) this.state.cached = false;
+      const builtSnapshot: ModelSnapshot = { file, model: this.model, state: { ...this.state, warning: null } };
+      writeSnapshot(store, builtSnapshot);
+      writeCache(store, cacheKey, file);
     } catch (e) {
+      if (snapshot) {
+        this.model = snapshot.model;
+        this.seed = snapshot.model.seed;
+        this.state = {
+          ...snapshot.state,
+          cached: true,
+          warning: `Update failed. Using cached data from ${snapshot.file.fetched_at}. ${message(e)}`,
+        };
+        return;
+      }
       this.state.status = 'error';
       this.state.error = message(e);
     }

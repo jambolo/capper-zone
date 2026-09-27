@@ -96,7 +96,7 @@ export async function download(url: string): Promise<string> {
       // No custom User-Agent: browsers forbid setting it, and it would force a CORS preflight.
       const response = await fetch(url, {
         signal: AbortSignal.timeout(25_000),
-        cache: 'no-store',
+        cache: 'no-cache',
       });
       if (!response.ok) throw new Error(`Provider returned HTTP ${response.status}`);
       return await response.text();

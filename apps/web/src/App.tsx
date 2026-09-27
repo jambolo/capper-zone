@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { currentSeason } from './contracts.ts';
-import { PredictionService, message, type PublicState } from './service.ts';
-import type { Prediction } from './model.ts';
-import { readConfig } from './storage.ts';
+import { message } from './service.ts';
+import { predict, type Prediction } from './model.ts';
+import { startSession, type SessionView } from './session.ts';
 
 const base = import.meta.env.BASE_URL;
 const percent = (p: number) => `${(100 * p).toFixed(1)}%`;
 const number = (n: number) => Math.round(n).toLocaleString();
 
 export default function App() {
-  const [service, setService] = useState<PredictionService | null>(null);
-  const [state, setState] = useState<PublicState | null>(null),
-    [error, setError] = useState('');
+  const [view, setView] = useState<SessionView>({ state: null, model: null, phase: 'checking', retryAt: null, error: '' });
+  const { state, model, error } = view;
   const [home, setHome] = useState(''),
     [away, setAway] = useState(''),
     [neutral, setNeutral] = useState(false);
@@ -19,47 +17,30 @@ export default function App() {
   const [tab, setTab] = useState<'scheduled' | 'completed' | 'awaiting_result'>('scheduled');
   const [week, setWeek] = useState('all');
   useEffect(() => {
-    const abort = new AbortController();
-    let live = true;
-    // The model runs in the browser: published Elo seeds plus a live provider refresh.
-    void (async () => {
-      try {
-        const { config, hash } = await readConfig(`${base}config/nfl.json`, abort.signal);
-        const instance = new PredictionService({
-          config,
-          configHash: hash,
-          dataBase: `${base}data`,
-          season: currentSeason(config),
-        });
-        if (!live) return;
-        setState(instance.getState());
-        await instance.initialize();
-        if (!live) return;
-        const s = instance.getState();
-        setService(instance);
-        setState(s);
-        if (s.status === 'ready') {
+    let selected = false;
+    return startSession({
+      configUrl: new URL(`${base}config/nfl.json`, window.location.href).href,
+      dataBase: new URL(`${base}data`, window.location.href).href,
+      onChange: (nextView) => {
+        setView(nextView);
+        const s = nextView.state;
+        if (s?.status === 'ready' && !selected) {
+          selected = true;
           const next = s.games.find((g) => g.status === 'scheduled');
           setHome(next?.home_team ?? s.teams[0]?.id ?? '');
           setAway(next?.away_team ?? s.teams[1]?.id ?? '');
           setNeutral(next?.neutral ?? false);
           setPhase(next?.phase ?? 'regular');
         }
-      } catch (e) {
-        if (live && !abort.signal.aborted) setError(message(e));
-      }
-    })();
-    return () => {
-      live = false;
-      abort.abort();
-    };
+      },
+    });
   }, []);
   // Predicting is a pure function of the fitted model, so it is derived, never stored.
   const { prediction, predictionError } = useMemo<{
     prediction: Prediction | null;
     predictionError: string;
   }>(() => {
-    if (!service || state?.status !== 'ready' || !home || !away) return { prediction: null, predictionError: '' };
+    if (!model || state?.status !== 'ready' || !home || !away) return { prediction: null, predictionError: '' };
     if (home === away)
       return {
         prediction: null,
@@ -67,13 +48,13 @@ export default function App() {
       };
     try {
       return {
-        prediction: service.predict(home, away, neutral, phase),
+        prediction: predict(model, home, away, neutral, phase),
         predictionError: '',
       };
     } catch (e) {
       return { prediction: null, predictionError: message(e) };
     }
-  }, [service, state?.status, home, away, neutral, phase]);
+  }, [model, state?.status, home, away, neutral, phase]);
   const teams = [...(state?.teams ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? id;
   const teamLabel = (id: string) => teams.find((t) => t.id === id)?.abbreviation ?? id;
@@ -108,18 +89,36 @@ export default function App() {
           <div className="status-card">
             <span className={`status-dot ${state?.status === 'ready' ? 'ready' : ''}`} aria-hidden="true" />
             <strong>
-              {state?.status === 'ready'
-                ? state.cached
-                  ? 'Using cached results'
-                  : 'Season refreshed'
-                : state?.status === 'error'
-                  ? 'Setup needed'
-                  : 'Refreshing season'}
+              {view.phase === 'rebuilding'
+                ? 'Updating predictions'
+                : view.phase === 'checking'
+                  ? 'Checking for updates'
+                  : view.phase === 'building'
+                    ? 'Building predictions'
+                    : state?.status === 'ready'
+                      ? state.cached
+                        ? 'Using cached results'
+                        : 'Up to date'
+                      : state?.status === 'error'
+                        ? 'Setup needed'
+                        : 'Refreshing season'}
             </strong>
-            <small>{state?.refreshed_at ? new Date(state.refreshed_at).toLocaleString() : 'Checking the latest game data…'}</small>
-            <small>Refreshes each time the page loads</small>
+            <small>
+              {state?.refreshed_at ? `Data retrieved: ${new Date(state.refreshed_at).toLocaleString()}` : 'No saved data yet'}
+            </small>
+            {state?.checked_at && <small>Last checked: {new Date(state.checked_at).toLocaleString()}</small>}
+            <small>
+              {view.retryAt
+                ? `Next check: ${new Date(view.retryAt).toLocaleTimeString()}`
+                : 'Checks on page load · at most once per minute'}
+            </small>
           </div>
         </div>
+        {view.phase === 'rebuilding' && (
+          <div role="status" className="notice">
+            Data changed. Updating predictions… Previous results remain available while the model is rebuilt.
+          </div>
+        )}
         {error && (
           <div role="alert" className="notice error">
             {error} Reload the page to try again.
@@ -140,7 +139,9 @@ export default function App() {
         {(!state || state.status === 'loading') && !error && (
           <section className="panel loading" aria-live="polite">
             <span className="spinner" />
-            Downloading current-season games and fitting the model…
+            {view.phase === 'waiting'
+              ? 'Waiting for the next data check…'
+              : 'Downloading current-season games and fitting the model…'}
           </section>
         )}
         {state?.status === 'ready' && (
