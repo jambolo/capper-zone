@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
-use rating_core::{GameFile, fetch_source, load_config, lock, parse_source, write_json};
+use rating_core::{GameFile, HISTORY_SCHEMA_VERSION, fetch_source, load_config, lock, parse_source_with_warnings, write_json};
 use std::{fs, path::PathBuf};
 
 #[derive(Parser)]
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
         Some(p) => fs::read_to_string(p).context("Read source file")?,
         None => fetch_source(&cfg.source.url)?,
     };
-    let games = parse_source(&text, &cfg)?
+    let games = parse_source_with_warnings(&text, &cfg, |warning| eprintln!("Warning: {warning}"))?
         .into_iter()
         .filter(|g| g.season >= cfg.history_start && g.season <= through)
         .collect::<Vec<_>>();
@@ -49,7 +49,7 @@ fn main() -> Result<()> {
         }
     }
     let file = GameFile {
-        schema_version: 1,
+        schema_version: HISTORY_SCHEMA_VERSION,
         league: cfg.id.clone(),
         fetched_at: chrono::Utc::now().to_rfc3339(),
         source_url: cfg.source.url,

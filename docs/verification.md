@@ -72,6 +72,43 @@ All dependencies and toolchains taken to the latest stable release, accepting br
   Rust SHA-256 digests still matching the browser's WebCrypto digests.
 - End-to-end browser code path against the built site: identical predictions to the pre-upgrade run.
 
+## Elo-only tuning, 2026-09-26
+
+- Added the offline `elo-tune` CLI. Configuration, source history, and published Elo seeds remain unchanged.
+- Shared the chronological Elo replay between `elo-ratings` and `elo-tune`; Bayesian fitting and Davidson
+  tie-weight estimation are absent from the tuner.
+- Rust workspace: 15 tests pass; formatting and Clippy with warnings treated as errors pass.
+- Tests cover pre-update scoring, ties, offseason boundaries, equal season weighting, conservative candidate
+  selection, input validation, repeatability, unchanged input files, independence from held-out outcomes
+  during selection, and independence from Bayesian parameter values.
+- On the existing 6,499-game dataset, the shared replay reproduces all previous audit entries, team ratings,
+  and tie weight exactly. The existing seed's configuration hash corresponds to LF line endings; the current
+  checkout uses CRLF. Verification compared numerical output separately and did not rewrite that seed.
+- The 2010–2022 search evaluated 472 combinations after expansion and refinement. Its conservative selection
+  was K = 40, home advantage = 45, and offseason regression = 0.3833333333333333. The lowest tuning MSE
+  occurred at K = 45, home advantage = 45, and regression = 0.43333333333333335.
+- Selected versus existing settings: tuning mean-season MSE 0.2227607921 versus 0.2260192987; held-out
+  2023–2025 mean-season MSE 0.2226960475 versus 0.2270675604, a 1.93% relative improvement. Performance
+  worsened in 2023 and improved in 2024 and 2025. Three held-out seasons do not establish general superiority.
+- These values are reported results, not changes to the production configuration. The CLI emits the full
+  per-season evaluation, calibration bins, search summary, and input hashes as JSON.
+
+## UTC history normalization, 2026-09-26
+
+- Historical imports write schema version 2 with required `kickoff_utc` and no `date`, `time`, or `timezone`.
+  Source-local conversion and warnings run only in the importer. Elo replay and tuning use the stored UTC
+  timestamp; schema 1 histories require reimporting. The current-season browser retains local fields.
+- Regression fixtures cover seasonal offsets, UTC date rollover, mixed-timezone shared-team replay,
+  deterministic DST overlaps, missing times, DST gaps, unknown zones, missing dates, and skipped dates.
+- The importer CLI test verifies warnings on stderr, UTC-only output even when a provider supplies a
+  conflicting timestamp, and preservation of the previous history file when a source date is missing.
+- Historical reader tests verify UTC-only round trips and replay, disregard for obsolete local fields,
+  rejection of missing or malformed UTC timestamps, and actionable errors for obsolete history files.
+- Backtest regression verifies that training uses only earlier UTC dates, excluding same-day and
+  simultaneous outcomes even when local dates disagree.
+- Passed: 24 Rust tests, Clippy with warnings as errors, Rust formatting, 34 web tests, ESLint, Prettier,
+  TypeScript strict checking, and the Vite production build.
+
 ## Scope
 
 The repository contains code, configuration, lockfiles, tests, documentation, and GitHub Actions workflows.

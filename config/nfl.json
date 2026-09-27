@@ -586,13 +586,18 @@
   "elo": {
     "initial": 1500,
     "scale": 400,
-    "k": 20,
-    "home_advantage": 55,
-    "offseason_regression": 0.3333333333333333
+    "k": 40,
+    "home_advantage": 45,
+    "offseason_regression": 0.383333
   },
   "bayesian": {
     "prior_sd_elo": 150,
     "tie_prior_games": 100,
     "tie_prior_rate": 0.005
+  },
+  "elo_tune": {
+    "tune_start": 2010,
+    "tune_end": 2022,
+    "test_end": 2025
   }
 }

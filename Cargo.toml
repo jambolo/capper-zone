@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/history-importer", "apps/elo-ratings", "crates/rating-core"]
+members = ["apps/history-importer", "apps/elo-ratings", "apps/elo-tune", "crates/rating-core"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,6 +10,7 @@ license = "MIT"
 [workspace.dependencies]
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 fs2 = "0.4"

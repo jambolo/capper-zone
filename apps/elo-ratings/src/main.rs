@@ -20,7 +20,8 @@ fn main() -> Result<()> {
     let dir = args.data_dir.join(&cfg.id);
     let _lock = lock(&dir.join("elo.lock"))?;
     let history_bytes = fs::read(dir.join("history.json")).context("Read history.json; run history-importer first")?;
-    let history: GameFile = serde_json::from_slice(&history_bytes)?;
+    let history: GameFile = serde_json::from_slice(&history_bytes)
+        .context("Parse history.json; kickoff_utc is required for every game; rerun history-importer")?;
     let seed = build_seed(&history, &history_bytes, &cfg, &config_bytes, season)?;
     let path = dir.join(format!("elo-{season}.json"));
     write_json(&path, &seed)?;

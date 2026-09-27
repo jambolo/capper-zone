@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, bail, ensure};
-use chrono::{Datelike, NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -10,6 +10,10 @@ use std::{
     path::Path,
     time::Duration,
 };
+
+mod elo;
+mod time;
+pub use elo::{EloReplay, expected_home, regress_rating, replay_elo};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Source {
@@ -47,6 +51,12 @@ pub struct BayesianSettings {
     pub tie_prior_rate: f64,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EloTuneSettings {
+    pub tune_start: i32,
+    pub tune_end: i32,
+    pub test_end: i32,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeagueConfig {
     pub schema_version: u32,
     pub id: String,
@@ -59,6 +69,8 @@ pub struct LeagueConfig {
     pub ties_allowed_in: Vec<String>,
     pub elo: EloSettings,
     pub bayesian: BayesianSettings,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elo_tune: Option<EloTuneSettings>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -72,10 +84,8 @@ pub struct Game {
     pub id: String,
     pub league: String,
     pub season: i32,
-    pub date: String,
-    /// Source-local HH:mm, or null when the source does not supply a kickoff.
-    pub time: Option<String>,
-    pub timezone: String,
+    /// Authoritative kickoff instant, converted by the source adapter before storage.
+    pub kickoff_utc: DateTime<Utc>,
     pub phase: String,
     pub round: String,
     pub week: u32,
@@ -86,6 +96,8 @@ pub struct Game {
     pub neutral: bool,
     pub result: Option<Outcome>,
 }
+pub const HISTORY_SCHEMA_VERSION: u32 = 2;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameFile {
     pub schema_version: u32,
@@ -266,12 +278,55 @@ impl LeagueConfig {
 }
 
 #[derive(Deserialize)]
+struct SourceGame {
+    id: String,
+    league: String,
+    season: i32,
+    #[serde(default)]
+    date: String,
+    /// Source-local HH:mm, or null when the source does not supply a kickoff.
+    time: Option<String>,
+    timezone: String,
+    phase: String,
+    round: String,
+    week: u32,
+    home_team: String,
+    away_team: String,
+    home_source_id: String,
+    away_source_id: String,
+    neutral: bool,
+    result: Option<Outcome>,
+}
+
+impl SourceGame {
+    fn normalize(self, warn: &mut impl FnMut(String)) -> Result<Game> {
+        Ok(Game {
+            kickoff_utc: time::kickoff_utc(&self, warn)?,
+            id: self.id,
+            league: self.league,
+            season: self.season,
+            phase: self.phase,
+            round: self.round,
+            week: self.week,
+            home_team: self.home_team,
+            away_team: self.away_team,
+            home_source_id: self.home_source_id,
+            away_source_id: self.away_source_id,
+            neutral: self.neutral,
+            result: self.result,
+        })
+    }
+}
+
+#[derive(Deserialize)]
 struct CsvGame {
     game_id: String,
     season: i32,
     game_type: String,
     week: u32,
+    #[serde(default)]
     gameday: String,
+    #[serde(default)]
     gametime: Option<String>,
     away_team: String,
     home_team: String,
@@ -282,6 +337,10 @@ struct CsvGame {
 
 /// Provider adapters normalize into the same league-independent game contract.
 pub fn parse_source(text: &str, cfg: &LeagueConfig) -> Result<Vec<Game>> {
+    parse_source_with_warnings(text, cfg, |_| {})
+}
+
+pub fn parse_source_with_warnings(text: &str, cfg: &LeagueConfig, mut warn: impl FnMut(String)) -> Result<Vec<Game>> {
     let mut games = Vec::new();
     match cfg.source.kind.as_str() {
         "nflverse-csv" => {
@@ -313,7 +372,7 @@ pub fn parse_source(text: &str, cfg: &LeagueConfig) -> Result<Vec<Game>> {
                     "Unknown location for {}",
                     r.game_id
                 );
-                games.push(Game {
+                games.push(SourceGame {
                     id: r.game_id,
                     league: cfg.id.clone(),
                     season: r.season,
@@ -337,7 +396,7 @@ pub fn parse_source(text: &str, cfg: &LeagueConfig) -> Result<Vec<Game>> {
             struct Input {
                 schema_version: u32,
                 league: String,
-                games: Vec<Game>,
+                games: Vec<SourceGame>,
             }
             let input: Input = serde_json::from_str(text)?;
             ensure!(
@@ -352,6 +411,10 @@ pub fn parse_source(text: &str, cfg: &LeagueConfig) -> Result<Vec<Game>> {
         }
         _ => bail!("Unknown source adapter"),
     }
+    let mut games = games
+        .into_iter()
+        .map(|g| g.normalize(&mut warn))
+        .collect::<Result<Vec<_>>>()?;
     validate_games(&mut games, cfg)?;
     Ok(games)
 }
@@ -382,11 +445,7 @@ pub fn validate_games(games: &mut [Game], cfg: &LeagueConfig) -> Result<()> {
                 g.id
             );
         }
-        NaiveDate::parse_from_str(&g.date, "%Y-%m-%d").context("Invalid game date")?;
-        if let Some(t) = &g.time {
-            NaiveTime::parse_from_str(t, "%H:%M").context("Invalid game time")?;
-        }
-        ensure!(!g.timezone.is_empty() && g.week > 0, "Missing timezone or invalid week");
+        ensure!(g.week > 0, "Invalid week");
         ensure!(["regular", "postseason"].contains(&g.phase.as_str()), "Invalid phase");
         ensure!(
             g.result != Some(Outcome::Tie) || cfg.ties_allowed_in.contains(&g.phase),
@@ -394,7 +453,7 @@ pub fn validate_games(games: &mut [Game], cfg: &LeagueConfig) -> Result<()> {
             g.id
         );
     }
-    games.sort_by(|a, b| (&a.season, &a.date, &a.time, &a.id).cmp(&(&b.season, &b.date, &b.time, &b.id)));
+    games.sort_by(|a, b| (a.season, a.kickoff_utc, &a.id).cmp(&(b.season, b.kickoff_utc, &b.id)));
     Ok(())
 }
 
@@ -451,10 +510,6 @@ pub fn lock(path: &Path) -> Result<File> {
     Ok(file)
 }
 
-pub fn expected_home(home: f64, away: f64, neutral: bool, cfg: &EloSettings) -> f64 {
-    1.0 / (1.0 + 10_f64.powf((away - home - if neutral { 0.0 } else { cfg.home_advantage }) / cfg.scale))
-}
-
 pub fn build_seed(
     history: &GameFile,
     history_bytes: &[u8],
@@ -468,8 +523,8 @@ pub fn build_seed(
         "Team identity history changed; rerun history-importer before elo-ratings"
     );
     ensure!(
-        history.schema_version == 1 && history.league == cfg.id,
-        "Incompatible history file"
+        history.schema_version == HISTORY_SCHEMA_VERSION && history.league == cfg.id,
+        "Incompatible history file; rerun history-importer"
     );
     ensure!(
         history.from_season == cfg.history_start && history.through_season == target - 1,
@@ -477,65 +532,30 @@ pub fn build_seed(
         cfg.history_start,
         target - 1
     );
-    let mut games = history.games.clone();
-    validate_games(&mut games, cfg)?;
     ensure!(
-        games.iter().all(|g| g.season >= cfg.history_start && g.season < target),
+        history
+            .games
+            .iter()
+            .all(|g| g.season >= cfg.history_start && g.season < target),
         "History contains a game outside its declared training period"
     );
-    let mut ratings: BTreeMap<String, f64> = cfg.teams.iter().map(|t| (t.id.clone(), cfg.elo.initial)).collect();
-    let mut counts: BTreeMap<String, usize> = ratings.keys().map(|k| (k.clone(), 0)).collect();
-    let mut audit = Vec::new();
-    let mut previous = cfg.history_start;
+    let EloReplay { mut ratings, audit } = replay_elo(&history.games, cfg, target - 1)?;
+    let games: BTreeMap<_, _> = history.games.iter().map(|g| (g.id.as_str(), g)).collect();
     let mut tie_eligible = Vec::new();
     let mut tied = 0;
-    for season in cfg.history_start..target {
-        ensure!(
-            games.iter().any(|g| g.season == season && g.result.is_some()),
-            "Missing completed historical season {season}"
-        );
-    }
-    for g in games.iter().filter(|g| g.result.is_some()) {
-        while previous < g.season {
-            for r in ratings.values_mut() {
-                *r = cfg.elo.initial + (*r - cfg.elo.initial) * (1.0 - cfg.elo.offseason_regression);
-            }
-            previous += 1;
-        }
-        let home = ratings[&g.home_team];
-        let away = ratings[&g.away_team];
-        let expected = expected_home(home, away, g.neutral, &cfg.elo);
-        let observed = match g.result.as_ref().unwrap() {
-            Outcome::HomeWin => 1.0,
-            Outcome::AwayWin => 0.0,
-            Outcome::Tie => 0.5,
-        };
-        let delta = cfg.elo.k * (observed - expected);
-        ratings.insert(g.home_team.clone(), home + delta);
-        ratings.insert(g.away_team.clone(), away - delta);
-        *counts.get_mut(&g.home_team).unwrap() += 1;
-        *counts.get_mut(&g.away_team).unwrap() += 1;
+    for entry in &audit {
+        let g = games[entry.game_id.as_str()];
         if cfg.ties_allowed_in.contains(&g.phase) {
             let advantage = if g.neutral { 0.0 } else { cfg.elo.home_advantage };
-            tie_eligible.push(std::f64::consts::LN_10 * (home - away + advantage) / cfg.elo.scale);
+            tie_eligible.push(std::f64::consts::LN_10 * (entry.home_before - entry.away_before + advantage) / cfg.elo.scale);
             if g.result == Some(Outcome::Tie) {
                 tied += 1;
             }
         }
-        audit.push(Audit {
-            game_id: g.id.clone(),
-            season: g.season,
-            home_before: home,
-            away_before: away,
-            expected_home_score: expected,
-            observed_home_score: observed,
-            home_after: home + delta,
-            away_after: away - delta,
-        });
     }
     // Apply exactly one offseason regression between the final historical season and the target.
-    for r in ratings.values_mut() {
-        *r = cfg.elo.initial + (*r - cfg.elo.initial) * (1.0 - cfg.elo.offseason_regression);
+    for r in &mut ratings {
+        r.elo = regress_rating(r.elo, &cfg.elo);
     }
     // Estimate Davidson's tie weight from pre-game historical differences, with
     // configurable pseudo-games to keep the estimate positive when ties are rare.
@@ -564,14 +584,7 @@ pub fn build_seed(
         completed_games: audit.len(),
         tied_games: tied,
         tie_weight: ((low + high) / 2.0).exp(),
-        ratings: ratings
-            .into_iter()
-            .map(|(team, elo)| Rating {
-                games: counts[&team],
-                team,
-                elo,
-            })
-            .collect(),
+        ratings,
         audit,
     })
 }

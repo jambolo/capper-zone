@@ -5,6 +5,7 @@ import { configSchema, currentSeason, seedSchema, type LeagueConfig } from '../s
 import { fitPosterior, predict } from '../src/model.ts';
 import { download, parseSource, usableResults } from '../src/provider.ts';
 import { digest } from '../src/storage.ts';
+import { utcDateBatches } from './backtest-batches.ts';
 
 const root = resolve(import.meta.dirname, '../../..');
 const { values } = parseArgs({
@@ -36,14 +37,10 @@ let logLoss = 0,
   brier = 0,
   baselineLogLoss = 0,
   baselineBrier = 0;
-// Batch by date: no same-day or later outcome can leak into a prediction.
-for (const date of [...new Set(games.map((g) => g.date))].sort()) {
-  const model = fitPosterior(
-    seed,
-    games.filter((g) => g.date < date),
-    config,
-  );
-  for (const g of games.filter((g) => g.date === date)) {
+// Batch by UTC date: no same-UTC-day or later outcome can leak into a prediction.
+for (const { training, testing } of utcDateBatches(games)) {
+  const model = fitPosterior(seed, training, config);
+  for (const g of testing) {
     const p = predict(model, g.home_team, g.away_team, g.neutral, g.phase);
     const classes = ['home_win', 'away_win', 'tie'] as const;
     const q = config.ties_allowed_in.includes(g.phase) ? seed.tie_weight / (2 + seed.tie_weight) : 0;
@@ -61,7 +58,7 @@ console.log(
     {
       season,
       games: games.length,
-      method: 'Predict using only results from earlier dates; multiclass Brier score, natural-log loss',
+      method: 'Predict using only results from earlier UTC dates; multiclass Brier score, natural-log loss',
       bayesian: { log_loss: logLoss / games.length, brier: brier / games.length },
       equal_strength_baseline: {
         log_loss: baselineLogLoss / games.length,

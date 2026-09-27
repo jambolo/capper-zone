@@ -18,7 +18,7 @@ R'_h = R_h + K(S-E_h), \qquad R'_a = R_a - K(S-E_h).
 
 `E_h` is an expected fractional game score, not a separately modeled probability of a home win when ties are possible. The historical Elo system uses ties correctly without estimating three outcome probabilities.
 
-Games are sorted by season, date, source-local kickoff time, and game ID. Unknown kickoff times sort before known times on that date. Before each new season, and once before the target season, regression r is applied:
+Games are sorted by season, UTC kickoff timestamp, and game ID. The importer converts source-local dates and times using IANA timezone rules, then discards the local fields. Historical readers require schema version 2 and use the stored `kickoff_utc` as authoritative; they never reconstruct it from local fields. Missing times and times in a daylight saving gap use local midnight; ambiguous times use the earlier occurrence. The importer warns for each fallback or ambiguity and rejects missing dates. If local midnight itself does not exist, conversion fails. Before each new season, and once before the target season, regression r is applied:
 
 ```math
 R_{new} = R_0 + (1-r)(R_{old}-R_0).

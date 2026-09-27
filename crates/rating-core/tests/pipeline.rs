@@ -28,11 +28,13 @@ fn rejects_duplicate_games_bad_dates_and_one_missing_score() {
 }
 #[test]
 fn seeds_are_chronological_tie_aware_and_regressed_exactly_once() {
-    let cfg = config();
+    let mut cfg = config();
+    cfg.elo.k = 20.0;
+    cfg.elo.offseason_regression = 1.0 / 3.0;
     let mut games = parse_source(csv(), &cfg).unwrap();
     games[0].result = Some(Outcome::HomeWin);
     let history = GameFile {
-        schema_version: 1,
+        schema_version: HISTORY_SCHEMA_VERSION,
         league: "nfl".into(),
         fetched_at: "2026-01-01T00:00:00Z".into(),
         source_url: cfg.source.url.clone(),
@@ -54,6 +56,14 @@ fn seeds_are_chronological_tie_aware_and_regressed_exactly_once() {
     let again = build_seed(&reversed, &bytes, &cfg, b"config", 2003).unwrap();
     assert_eq!(seed.ratings[0].elo, again.ratings[0].elo);
     assert!(build_seed(&history, &bytes, &cfg, b"config", 2004).is_err());
+    let mut obsolete = history.clone();
+    obsolete.schema_version = 1;
+    assert!(
+        build_seed(&obsolete, &bytes, &cfg, b"config", 2003)
+            .unwrap_err()
+            .to_string()
+            .contains("rerun history-importer")
+    );
     let mut leaked = history;
     leaked.games[0].season = 2003;
     assert!(build_seed(&leaked, &bytes, &cfg, b"config", 2003).is_err());
@@ -74,7 +84,17 @@ fn generic_json_adapter_has_no_nfl_team_count_dependency() {
     for g in &mut games {
         g.league = "demo".into();
     }
-    let input = serde_json::json!({"schema_version":1,"league":"demo","games":games});
+    let source_games: Vec<_> = games
+        .into_iter()
+        .map(|g| {
+            let mut row = serde_json::to_value(g).unwrap();
+            row["date"] = serde_json::json!("2002-09-01");
+            row["time"] = serde_json::json!("13:00");
+            row["timezone"] = serde_json::json!("America/New_York");
+            row
+        })
+        .collect();
+    let input = serde_json::json!({"schema_version":1,"league":"demo","games":source_games});
     assert_eq!(parse_source(&input.to_string(), &cfg).unwrap().len(), 2);
 }
 
@@ -102,7 +122,7 @@ fn relocation_preserves_one_rating_history_and_original_source_ids() {
     assert_eq!(games[0].home_source_id, "OAK");
     assert_eq!(games[1].home_source_id, "LV");
     let history = GameFile {
-        schema_version: 1,
+        schema_version: HISTORY_SCHEMA_VERSION,
         league: "nfl".into(),
         fetched_at: "2021-03-01T00:00:00Z".into(),
         source_url: cfg.source.url.clone(),
@@ -117,4 +137,37 @@ fn relocation_preserves_one_rating_history_and_original_source_ids() {
     assert!(team.elo > 1500.0);
     assert!(output.audit[1].home_before > 1500.0); // Rename did not reset the rating.
     assert!(parse_source(&input.replace("OAK", "LV"), &cfg).is_err());
+}
+
+#[test]
+fn elo_replay_scores_before_updates_and_regresses_only_at_boundaries() {
+    let mut cfg = config();
+    cfg.elo.k = 20.0;
+    cfg.elo.offseason_regression = 0.5;
+    let mut games = parse_source(csv(), &cfg).unwrap();
+    games[0].result = Some(Outcome::HomeWin);
+    let mut next = games[0].clone();
+    next.id = "next-season".into();
+    next.season = 2003;
+    next.kickoff_utc = "2003-09-01T17:00:00Z".parse().unwrap();
+    next.result = Some(Outcome::Tie);
+    games.insert(0, next);
+    let replay = replay_elo(&games, &cfg, 2003).unwrap();
+    assert_eq!(replay.audit.len(), 2);
+    assert_eq!(replay.audit[0].expected_home_score, 0.5);
+    assert_eq!(replay.audit[0].home_after, 1510.0);
+    assert_eq!(replay.audit[1].home_before, 1505.0);
+    assert_eq!(replay.audit[1].away_before, 1495.0);
+    assert_eq!(replay.audit[1].observed_home_score, 0.5);
+    let expected = 1.0 / (1.0 + 10_f64.powf(-10.0 / 400.0));
+    assert!((replay.audit[1].expected_home_score - expected).abs() < 1e-12);
+    assert!((replay.audit[1].home_after - (1505.0 + 20.0 * (0.5 - expected))).abs() < 1e-12);
+    let lv = replay.ratings.iter().find(|r| r.team == "LV").unwrap();
+    assert_eq!(lv.elo, replay.audit[1].home_after);
+    assert_eq!(lv.games, 2);
+    let before = serde_json::to_value(&replay_elo(&games, &cfg, 2002).unwrap().audit).unwrap();
+    games[0].result = Some(Outcome::AwayWin);
+    let after = serde_json::to_value(&replay_elo(&games, &cfg, 2002).unwrap().audit).unwrap();
+    assert_eq!(before, after);
+    assert!(replay_elo(&games, &cfg, 2004).is_err());
 }

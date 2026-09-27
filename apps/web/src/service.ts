@@ -1,4 +1,4 @@
-import { DateTime } from 'luxon';
+import { kickoffUtc } from './time.ts';
 import type { EloSeed, Game, GameFile, LeagueConfig } from './contracts.ts';
 import { fitPosterior, predict, teamEstimates, type Posterior, type Prediction } from './model.ts';
 import { download, parseSource, usableResults } from './provider.ts';
@@ -143,10 +143,8 @@ export class PredictionService {
       this.state.historical_games = this.seed.completed_games;
       this.state.held_results = file.games.filter((g) => g.result !== null && !completed.has(g.id)).length;
       this.state.games = file.games.map((g) => {
-        const kickoff = DateTime.fromISO(`${g.date}T${g.time ?? '00:00'}`, {
-          zone: g.timezone,
-        });
-        const status = completed.has(g.id) ? 'completed' : kickoff.toMillis() <= now.getTime() ? 'awaiting_result' : 'scheduled';
+        const kickoff = Date.parse(g.kickoff_utc ?? kickoffUtc(g));
+        const status = completed.has(g.id) ? 'completed' : kickoff <= now.getTime() ? 'awaiting_result' : 'scheduled';
         return {
           ...g,
           result: completed.has(g.id) ? g.result : null,
