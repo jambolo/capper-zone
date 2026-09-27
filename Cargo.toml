@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/history-importer", "apps/elo-ratings", "apps/elo-tune", "crates/rating-core"]
+members = ["apps/history-importer", "apps/elo-ratings", "apps/elo-tune", "apps/bayes-tune", "crates/rating-core"]
 
 [workspace.package]
 version = "0.1.0"

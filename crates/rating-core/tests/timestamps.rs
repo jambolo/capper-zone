@@ -10,14 +10,14 @@ fn config() -> LeagueConfig {
 fn row(id: &str, date: &str, time: Option<&str>, timezone: &str) -> Value {
     json!({
         "id": id, "league": "nfl", "season": 2002, "date": date, "time": time,
-        "timezone": timezone, "phase": "regular", "round": "REG", "week": 1,
+        "timezone": timezone, "phase": "regular", "round_label": "REG", "round": 1,
         "home_team": "SEA", "away_team": "SF", "home_source_id": "SEA",
         "away_source_id": "SF", "neutral": true, "result": "home_win"
     })
 }
 
 fn source(rows: Vec<Value>) -> String {
-    json!({"schema_version": 1, "league": "nfl", "games": rows}).to_string()
+    json!({"schema_version": 2, "league": "nfl", "games": rows}).to_string()
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn converts_offsets_and_discards_local_fields_with_explicit_dst_policies() {
         let input = source(vec![row("g", date, time, zone)]);
         let mut warnings = Vec::new();
         let games = parse_source_with_warnings(&input, &config(), |w| warnings.push(w)).unwrap();
-        assert_eq!(serde_json::to_value(&games[0]).unwrap()["kickoff_utc"], expected);
+        assert_eq!(serde_json::to_value(&games[0]).unwrap()["start_time_utc"], expected);
         let stored = serde_json::to_value(&games[0]).unwrap();
         for field in ["date", "time", "timezone"] {
             assert!(stored.get(field).is_none());
@@ -84,7 +84,7 @@ fn sorts_and_replays_shared_teams_by_utc_even_across_local_dates() {
     assert_eq!(replay.audit[1].home_before, 1510.0);
     assert!(replay.audit[1].home_after < 1500.0);
     let mut changed = games;
-    changed[0].kickoff_utc = "2002-09-03T00:00:00Z".parse().unwrap();
+    changed[0].start_time_utc = "2002-09-03T00:00:00Z".parse().unwrap();
     validate_games(&mut changed, &cfg).unwrap();
     assert_eq!(changed[0].id, "later");
 }
@@ -135,7 +135,7 @@ fn csv_missing_time_warns_and_serializes_utc() {
     let games = parse_source_with_warnings(csv, &cfg, |w| warnings.push(w)).unwrap();
     assert_eq!(warnings.len(), 1);
     assert_eq!(
-        serde_json::to_value(&games[0]).unwrap()["kickoff_utc"],
+        serde_json::to_value(&games[0]).unwrap()["start_time_utc"],
         "2002-09-01T04:00:00Z"
     );
     assert!(parse_source(&csv.replace("2002-09-01", ""), &cfg).is_err());
@@ -147,7 +147,7 @@ fn csv_missing_time_warns_and_serializes_utc() {
 #[test]
 fn historical_reader_uses_only_stored_utc_and_ignores_local_fields() {
     let mut input = row("utc-only", "invalid-local-date", Some("invalid-local-time"), "invalid-zone");
-    input["kickoff_utc"] = json!("2002-09-01T17:00:00Z");
+    input["start_time_utc"] = json!("2002-09-01T17:00:00Z");
     let with_local: Game = serde_json::from_value(input.clone()).unwrap();
     for field in ["date", "time", "timezone"] {
         input.as_object_mut().unwrap().remove(field);
@@ -157,7 +157,7 @@ fn historical_reader_uses_only_stored_utc_and_ignores_local_fields() {
     validate_games(&mut games, &config()).unwrap();
     assert_eq!(games[0], without_local);
     assert_eq!(
-        serde_json::to_value(&games[0]).unwrap()["kickoff_utc"],
+        serde_json::to_value(&games[0]).unwrap()["start_time_utc"],
         "2002-09-01T17:00:00Z"
     );
     assert_eq!(replay_elo(&games, &config(), 2002).unwrap().audit.len(), 1);
@@ -170,7 +170,7 @@ fn historical_reader_rejects_missing_or_invalid_utc_without_local_fallback() {
         serde_json::from_value::<Game>(input.clone())
             .unwrap_err()
             .to_string()
-            .contains("kickoff_utc")
+            .contains("start_time_utc")
     );
     for invalid in [
         Value::Null,
@@ -179,7 +179,7 @@ fn historical_reader_rejects_missing_or_invalid_utc_without_local_fallback() {
         json!("2002-02-30T17:00:00Z"),
     ] {
         let mut bad = input.clone();
-        bad["kickoff_utc"] = invalid;
+        bad["start_time_utc"] = invalid;
         assert!(serde_json::from_value::<Game>(bad).is_err());
     }
 }

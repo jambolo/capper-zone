@@ -11,8 +11,10 @@ use std::{
     time::Duration,
 };
 
+pub mod bayesian;
 mod elo;
 mod time;
+pub mod tuning;
 pub use elo::{EloReplay, expected_home, regress_rating, replay_elo};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,11 +53,12 @@ pub struct BayesianSettings {
     pub tie_prior_rate: f64,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EloTuneSettings {
+pub struct TuningSettings {
     pub tune_start: i32,
     pub tune_end: i32,
     pub test_end: i32,
 }
+pub use TuningSettings as EloTuneSettings;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeagueConfig {
     pub schema_version: u32,
@@ -71,6 +74,8 @@ pub struct LeagueConfig {
     pub bayesian: BayesianSettings,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elo_tune: Option<EloTuneSettings>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bayes_tune: Option<TuningSettings>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -84,11 +89,11 @@ pub struct Game {
     pub id: String,
     pub league: String,
     pub season: i32,
-    /// Authoritative kickoff instant, converted by the source adapter before storage.
-    pub kickoff_utc: DateTime<Utc>,
+    /// Authoritative game start instant, converted by the source adapter before storage.
+    pub start_time_utc: DateTime<Utc>,
     pub phase: String,
-    pub round: String,
-    pub week: u32,
+    pub round_label: String,
+    pub round: u32,
     pub home_team: String,
     pub away_team: String,
     pub home_source_id: String,
@@ -96,7 +101,7 @@ pub struct Game {
     pub neutral: bool,
     pub result: Option<Outcome>,
 }
-pub const HISTORY_SCHEMA_VERSION: u32 = 2;
+pub const HISTORY_SCHEMA_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameFile {
@@ -284,12 +289,12 @@ struct SourceGame {
     season: i32,
     #[serde(default)]
     date: String,
-    /// Source-local HH:mm, or null when the source does not supply a kickoff.
+    /// Source-local HH:mm, or null when the source does not supply a start time.
     time: Option<String>,
     timezone: String,
     phase: String,
-    round: String,
-    week: u32,
+    round_label: String,
+    round: u32,
     home_team: String,
     away_team: String,
     home_source_id: String,
@@ -301,13 +306,13 @@ struct SourceGame {
 impl SourceGame {
     fn normalize(self, warn: &mut impl FnMut(String)) -> Result<Game> {
         Ok(Game {
-            kickoff_utc: time::kickoff_utc(&self, warn)?,
+            start_time_utc: time::start_time_utc(&self, warn)?,
             id: self.id,
             league: self.league,
             season: self.season,
             phase: self.phase,
+            round_label: self.round_label,
             round: self.round,
-            week: self.week,
             home_team: self.home_team,
             away_team: self.away_team,
             home_source_id: self.home_source_id,
@@ -380,8 +385,8 @@ pub fn parse_source_with_warnings(text: &str, cfg: &LeagueConfig, mut warn: impl
                     time: r.gametime,
                     timezone: "America/New_York".into(),
                     phase: phase.into(),
-                    round: r.game_type,
-                    week: r.week,
+                    round_label: r.game_type,
+                    round: r.week,
                     home_team: cfg.team_id(&r.home_team),
                     away_team: cfg.team_id(&r.away_team),
                     home_source_id: r.home_team,
@@ -400,8 +405,8 @@ pub fn parse_source_with_warnings(text: &str, cfg: &LeagueConfig, mut warn: impl
             }
             let input: Input = serde_json::from_str(text)?;
             ensure!(
-                input.schema_version == 1 && input.league == cfg.id,
-                "Incompatible source envelope"
+                input.schema_version == 2 && input.league == cfg.id,
+                "Incompatible source envelope; canonical JSON requires schema version 2"
             );
             games = input.games;
             for g in &mut games {
@@ -445,7 +450,7 @@ pub fn validate_games(games: &mut [Game], cfg: &LeagueConfig) -> Result<()> {
                 g.id
             );
         }
-        ensure!(g.week > 0, "Invalid week");
+        ensure!(g.round > 0, "Invalid round");
         ensure!(["regular", "postseason"].contains(&g.phase.as_str()), "Invalid phase");
         ensure!(
             g.result != Some(Outcome::Tie) || cfg.ties_allowed_in.contains(&g.phase),
@@ -453,7 +458,7 @@ pub fn validate_games(games: &mut [Game], cfg: &LeagueConfig) -> Result<()> {
             g.id
         );
     }
-    games.sort_by(|a, b| (a.season, a.kickoff_utc, &a.id).cmp(&(b.season, b.kickoff_utc, &b.id)));
+    games.sort_by(|a, b| (a.season, a.start_time_utc, &a.id).cmp(&(b.season, b.start_time_utc, &b.id)));
     Ok(())
 }
 
@@ -540,37 +545,10 @@ pub fn build_seed(
         "History contains a game outside its declared training period"
     );
     let EloReplay { mut ratings, audit } = replay_elo(&history.games, cfg, target - 1)?;
-    let games: BTreeMap<_, _> = history.games.iter().map(|g| (g.id.as_str(), g)).collect();
-    let mut tie_eligible = Vec::new();
-    let mut tied = 0;
-    for entry in &audit {
-        let g = games[entry.game_id.as_str()];
-        if cfg.ties_allowed_in.contains(&g.phase) {
-            let advantage = if g.neutral { 0.0 } else { cfg.elo.home_advantage };
-            tie_eligible.push(std::f64::consts::LN_10 * (entry.home_before - entry.away_before + advantage) / cfg.elo.scale);
-            if g.result == Some(Outcome::Tie) {
-                tied += 1;
-            }
-        }
-    }
+    let ties = bayesian::TieHistory::from_audit(&audit, &history.games, cfg)?;
     // Apply exactly one offseason regression between the final historical season and the target.
     for r in &mut ratings {
         r.elo = regress_rating(r.elo, &cfg.elo);
-    }
-    // Estimate Davidson's tie weight from pre-game historical differences, with
-    // configurable pseudo-games to keep the estimate positive when ties are rare.
-    let desired = tied as f64 + cfg.bayesian.tie_prior_games * cfg.bayesian.tie_prior_rate;
-    let (mut low, mut high) = (-25.0_f64, 25.0_f64);
-    for _ in 0..100 {
-        let mid = (low + high) / 2.0;
-        let nu = mid.exp();
-        let expected_ties: f64 = tie_eligible.iter().map(|d| nu / (2.0 * (d / 2.0).cosh() + nu)).sum::<f64>()
-            + cfg.bayesian.tie_prior_games * nu / (2.0 + nu);
-        if expected_ties < desired {
-            low = mid;
-        } else {
-            high = mid;
-        }
     }
     Ok(EloSeed {
         schema_version: 1,
@@ -582,8 +560,8 @@ pub fn build_seed(
         config_sha256: digest(config_bytes),
         settings: cfg.elo.clone(),
         completed_games: audit.len(),
-        tied_games: tied,
-        tie_weight: ((low + high) / 2.0).exp(),
+        tied_games: ties.tied_games,
+        tie_weight: ties.estimate(&cfg.bayesian),
         ratings,
         audit,
     })

@@ -1,50 +1,12 @@
-use rating_core::{EloTuneSettings, Game, GameFile, HISTORY_SCHEMA_VERSION, LeagueConfig, Outcome};
+use rating_core::{EloTuneSettings, HISTORY_SCHEMA_VERSION, Outcome};
 use serde_json::Value;
 use std::{fs, path::Path, process::Command};
 
-fn fixture() -> (LeagueConfig, GameFile) {
-    let mut cfg: LeagueConfig = serde_json::from_str(include_str!("../../../config/nfl.json")).unwrap();
-    cfg.source.kind = "canonical-json".into();
-    cfg.source.url = "https://invalid.example.test/no-network-needed".into();
-    cfg.elo_tune = Some(EloTuneSettings {
-        tune_start: 2003,
-        tune_end: 2004,
-        test_end: 2005,
-    });
-    let games = (2002..=2005)
-        .flat_map(|season| {
-            (1..=4).map(move |round| Game {
-                id: format!("{season}-{round}"),
-                league: "nfl".into(),
-                season,
-                start_time_utc: format!("{season}-09-{:02}T17:00:00Z", round * 7).parse().unwrap(),
-                phase: "regular".into(),
-                round_label: "REG".into(),
-                round,
-                home_team: "ARI".into(),
-                away_team: "ATL".into(),
-                home_source_id: "ARI".into(),
-                away_source_id: "ATL".into(),
-                neutral: round == 4,
-                result: Some(if round == 3 { Outcome::AwayWin } else { Outcome::HomeWin }),
-            })
-        })
-        .collect();
-    let history = GameFile {
-        schema_version: HISTORY_SCHEMA_VERSION,
-        league: "nfl".into(),
-        fetched_at: "2006-03-01T00:00:00Z".into(),
-        source_url: cfg.source.url.clone(),
-        from_season: 2002,
-        through_season: 2005,
-        teams: cfg.teams.clone(),
-        games,
-    };
-    (cfg, history)
-}
+mod common;
+use common::fixture;
 
 fn invoke(root: &Path, extra: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_elo-tune"))
+    Command::new(env!("CARGO_BIN_EXE_bayes-tune"))
         .current_dir(root)
         .args(["--config", "config.json", "--data-dir", "data"])
         .args(extra)
@@ -76,13 +38,16 @@ fn cli_is_read_only_repeatable_and_selects_independently_of_heldout_outcomes() {
     let report_path = dir
         .path()
         .join("reports")
-        .join(format!("elo-tuning-report-nfl-{}.json", run_at.format("%Y-%m-%d")));
+        .join(format!("bayes-tuning-report-nfl-{}.json", run_at.format("%Y-%m-%d")));
     let saved: Value = serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
     assert_eq!(saved, report);
     assert_eq!(report["tuning"]["baseline"]["games"], 8);
     assert_eq!(report["holdout"]["baseline"]["games"], 4);
-    assert_eq!(report["baseline_parameters"]["k"], cfg.elo.k);
-    assert!(report["search"]["candidates_evaluated"].as_u64().unwrap() >= 125);
+    assert_eq!(report["fixed_elo"], serde_json::to_value(&cfg.elo).unwrap());
+    assert_eq!(report["config_sha256"], rating_core::digest(&config_bytes));
+    assert_eq!(report["history_sha256"], rating_core::digest(&history_bytes));
+    assert_eq!(report["baseline_parameters"]["prior_sd_elo"], cfg.bayesian.prior_sd_elo);
+    assert!(report["search"]["candidates_evaluated"].as_u64().unwrap() >= 120);
     let again = invoke(dir.path(), &["--report-dir", "reports"]);
     assert!(again.status.success());
     let mut repeated: Value = serde_json::from_slice(&again.stdout).unwrap();
@@ -91,7 +56,7 @@ fn cli_is_read_only_repeatable_and_selects_independently_of_heldout_outcomes() {
     let repeated_path = dir
         .path()
         .join("reports")
-        .join(format!("elo-tuning-report-nfl-{}.json", repeated_at.format("%Y-%m-%d")));
+        .join(format!("bayes-tuning-report-nfl-{}.json", repeated_at.format("%Y-%m-%d")));
     let saved: Value = serde_json::from_slice(&fs::read(repeated_path).unwrap()).unwrap();
     assert_eq!(saved, repeated);
     let mut original = report.clone();
@@ -107,7 +72,7 @@ fn cli_is_read_only_repeatable_and_selects_independently_of_heldout_outcomes() {
     assert_eq!(fs::read_dir(dir.path().join("data/nfl")).unwrap().count(), 2);
 
     for g in history.games.iter_mut().filter(|g| g.season == 2005) {
-        g.result = Some(Outcome::Tie);
+        g.result = Some(Outcome::AwayWin);
     }
     fs::write(
         dir.path().join("data/nfl/history.json"),
@@ -121,19 +86,6 @@ fn cli_is_read_only_repeatable_and_selects_independently_of_heldout_outcomes() {
     assert_eq!(report["search"], changed["search"]);
     assert_eq!(report["tuning"], changed["tuning"]);
     assert_ne!(report["holdout"], changed["holdout"]);
-
-    let mut other_bayesian = cfg;
-    other_bayesian.bayesian.prior_sd_elo = 500.0;
-    other_bayesian.bayesian.tie_prior_games = 1.0;
-    other_bayesian.bayesian.tie_prior_rate = 0.25;
-    fs::write(dir.path().join("config.json"), serde_json::to_vec(&other_bayesian).unwrap()).unwrap();
-    let independent = invoke(dir.path(), &["--test-end", "2005"]);
-    assert!(independent.status.success());
-    let independent: Value = serde_json::from_slice(&independent.stdout).unwrap();
-    assert_eq!(changed["search"], independent["search"]);
-    assert_eq!(changed["selected_parameters"], independent["selected_parameters"]);
-    assert_eq!(changed["tuning"], independent["tuning"]);
-    assert_eq!(changed["holdout"], independent["holdout"]);
 }
 
 #[test]
@@ -172,6 +124,21 @@ fn cli_boundaries_override_config_and_work_without_defaults() {
             serde_json::json!({"warmup_start": 2002, "tune_start": 2003, "tune_end": 2004, "test_end": 2005})
         );
     }
+    cfg.elo_tune = Some(EloTuneSettings {
+        tune_start: 2010,
+        tune_end: 2022,
+        test_end: 2025,
+    });
+    cfg.bayes_tune = Some(EloTuneSettings {
+        tune_start: 2003,
+        tune_end: 2004,
+        test_end: 2005,
+    });
+    fs::write(dir.path().join("config.json"), serde_json::to_vec(&cfg).unwrap()).unwrap();
+    let output = invoke(dir.path(), &[]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["split"]["tune_start"], 2003);
 }
 
 #[test]

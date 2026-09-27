@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon';
 
 /** Match the historical import policy, including deterministic DST overlap resolution. */
-export function kickoffUtc(game: { id: string; date: string; time: string | null; timezone: string }): string {
+export function startTimeUtc(game: { id: string; date: string; time: string | null; timezone: string }): string {
   const time = game.time?.trim() || '00:00';
   let local = DateTime.fromISO(`${game.date}T${time}`, { zone: game.timezone });
   if (!local.isValid) throw new Error(`Invalid source date, time, or timezone for game ${game.id}`);

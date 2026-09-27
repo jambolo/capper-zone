@@ -591,9 +591,9 @@
     "offseason_regression": 0.383333
   },
   "bayesian": {
-    "prior_sd_elo": 150,
-    "tie_prior_games": 100,
-    "tie_prior_rate": 0.005
+    "prior_sd_elo": 100,
+    "tie_prior_games": 212.13203435596424,
+    "tie_prior_rate": 0.0070710678118654745
   },
   "elo_tune": {
     "tune_start": 2010,

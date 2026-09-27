@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DateTime } from 'luxon';
-import { kickoffUtc } from './time.ts';
+import { startTimeUtc } from './time.ts';
 
 const finite = z.number().finite();
 const phase = z.enum(['regular', 'postseason']);
@@ -83,11 +83,11 @@ export const gameSchema = z.object({
     .regex(/^(?:(?:[01]\d|2[0-3]):[0-5]\d|\s*)$/)
     .nullable()
     .default(null),
-  kickoff_utc: z.iso.datetime().optional(),
+  start_time_utc: z.iso.datetime().optional(),
   timezone: z.string().refine((s) => DateTime.now().setZone(s).isValid),
   phase,
-  round: z.string(),
-  week: z.number().int().positive(),
+  round_label: z.string(),
+  round: z.number().int().positive(),
   home_team: z.string(),
   away_team: z.string(),
   neutral: z.boolean(),
@@ -97,7 +97,7 @@ export const gameSchema = z.object({
 });
 export type Game = z.infer<typeof gameSchema>;
 export const gameFileSchema = z.object({
-  schema_version: z.literal(1),
+  schema_version: z.literal(2),
   league: z.string(),
   fetched_at: z.iso.datetime({ offset: true }),
   source_url: z.string(),
@@ -150,10 +150,10 @@ export function validateGames(input: unknown, config: LeagueConfig): Game[] {
       if (config.source.kind === 'nflverse-csv' && !era.source_ids.includes(source))
         throw new Error(`Source abbreviation invalid for season ${g.season}: ${g.id}`);
     }
-    g.kickoff_utc = kickoffUtc(g);
+    g.start_time_utc = startTimeUtc(g);
     if (g.result === 'tie' && !config.ties_allowed_in.includes(g.phase)) throw new Error(`Tie prohibited for ${g.id}`);
   }
-  return games.sort((a, b) => a.season - b.season || order(a.kickoff_utc!, b.kickoff_utc!) || order(a.id, b.id));
+  return games.sort((a, b) => a.season - b.season || order(a.start_time_utc!, b.start_time_utc!) || order(a.id, b.id));
 }
 export function currentSeason(config: LeagueConfig, now = new Date()): number {
   return now.getUTCFullYear() - Number(now.getUTCMonth() + 1 < config.season_rollover_month);

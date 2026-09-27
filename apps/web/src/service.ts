@@ -1,4 +1,5 @@
-import { kickoffUtc } from './time.ts';
+import { DateTime } from 'luxon';
+import { startTimeUtc } from './time.ts';
 import type { EloSeed, Game, GameFile, LeagueConfig } from './contracts.ts';
 import { fitPosterior, predict, teamEstimates, type Posterior, type Prediction } from './model.ts';
 import { download, parseSource, usableResults } from './provider.ts';
@@ -103,7 +104,7 @@ export class PredictionService {
           }
         }
         file = {
-          schema_version: 1,
+          schema_version: 2,
           league: this.config.id,
           fetched_at: now.toISOString(),
           source_url: this.config.source.url,
@@ -142,14 +143,28 @@ export class PredictionService {
       this.state.training_games = results.length;
       this.state.historical_games = this.seed.completed_games;
       this.state.held_results = file.games.filter((g) => g.result !== null && !completed.has(g.id)).length;
+      const pregameModels = new Map<number, Posterior>();
       this.state.games = file.games.map((g) => {
-        const kickoff = Date.parse(g.kickoff_utc ?? kickoffUtc(g));
-        const status = completed.has(g.id) ? 'completed' : kickoff <= now.getTime() ? 'awaiting_result' : 'scheduled';
+        const startTime = Date.parse(g.start_time_utc ?? startTimeUtc(g));
+        const status = completed.has(g.id) ? 'completed' : startTime <= now.getTime() ? 'awaiting_result' : 'scheduled';
+        let model = this.model!;
+        if (status === 'completed') {
+          // Without final timestamps, exclude same-day outcomes and reuse each day's model.
+          const zone = this.config.source.kind === 'nflverse-csv' ? 'America/New_York' : 'utc';
+          const cutoff = DateTime.fromMillis(startTime, { zone }).startOf('day').toMillis();
+          let pregame = pregameModels.get(cutoff);
+          if (!pregame) {
+            const priorResults = results.filter((r) => Date.parse(r.start_time_utc ?? startTimeUtc(r)) < cutoff);
+            pregame = fitPosterior(this.seed!, priorResults, this.config);
+            pregameModels.set(cutoff, pregame);
+          }
+          model = pregame;
+        }
         return {
           ...g,
           result: completed.has(g.id) ? g.result : null,
           status,
-          prediction: status === 'scheduled' ? predict(this.model!, g.home_team, g.away_team, g.neutral, g.phase) : null,
+          prediction: predict(model, g.home_team, g.away_team, g.neutral, g.phase),
         };
       });
       this.state.status = 'ready';

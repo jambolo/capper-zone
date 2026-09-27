@@ -18,7 +18,7 @@ R'_h = R_h + K(S-E_h), \qquad R'_a = R_a - K(S-E_h).
 
 `E_h` is an expected fractional game score, not a separately modeled probability of a home win when ties are possible. The historical Elo system uses ties correctly without estimating three outcome probabilities.
 
-Games are sorted by season, UTC kickoff timestamp, and game ID. The importer converts source-local dates and times using IANA timezone rules, then discards the local fields. Historical readers require schema version 2 and use the stored `kickoff_utc` as authoritative; they never reconstruct it from local fields. Missing times and times in a daylight saving gap use local midnight; ambiguous times use the earlier occurrence. The importer warns for each fallback or ambiguity and rejects missing dates. If local midnight itself does not exist, conversion fails. Before each new season, and once before the target season, regression r is applied:
+Games are sorted by season, UTC start time, and game ID. The importer converts source-local dates and times using IANA timezone rules, then discards the local fields. Historical readers require schema version 3 and use the stored `start_time_utc` as authoritative; they never reconstruct it from local fields. Missing times and times in a daylight saving gap use local midnight; ambiguous times use the earlier occurrence. The importer warns for each fallback or ambiguity and rejects missing dates. If local midnight itself does not exist, conversion fails. Before each new season, and once before the target season, regression r is applied:
 
 ```math
 R_{new} = R_0 + (1-r)(R_{old}-R_0).
@@ -64,9 +64,11 @@ The result is a **Laplace approximation**, not exact sampling. It retains the fu
 
 Predicted outcome probabilities average the likelihood over this normal distribution using deterministic Simpson quadrature over ±8 standard deviations (160 intervals). They are not just probabilities evaluated at the fitted mean. The displayed home-win credible interval transforms the 2.5th and 97.5th percentiles of d through the monotonically increasing home-win function. It describes uncertainty about the home team's win probability, not a range of possible game scores.
 
+The Rust `rating-core::bayesian` implementation uses the same likelihood, optimizer, covariance, and predictive integration as the browser. A shared fixture checks both implementations. `bayes-tune` uses this model for offline chronological parameter search, keeping Elo fixed, regenerating preseason priors and tie weights from earlier seasons, and excluding same-UTC-day outcomes from predictions. It selects by mean season log loss, then evaluates a frozen choice on later held-out seasons. See [Bayesian parameter tuning](../README.md#bayesian-parameter-tuning) for search settings and report contents.
+
 ## Limits and validation
 
-- Team strength is modeled as constant within each fitted season. There is no explicit weekly random walk, injury adjustment, roster change, rest effect, or recency weighting within that season.
+- Team strength is modeled as constant within each fitted season. There is no explicit random walk over time, injury adjustment, roster change, rest effect, or recency weighting within that season.
 - The covariance and intervals are approximate and conditional on the selected hyperparameters, fixed home advantage, and fixed tie parameter. They do not include all sources of forecast uncertainty.
 - Elo K, home advantage, regression, and prior variance are editable starting choices. They have not been optimized or claimed to outperform another forecasting model.
 - Historical continuity across a franchise relocation is a deliberate team-identity rule, not a claim of unchanged roster quality.

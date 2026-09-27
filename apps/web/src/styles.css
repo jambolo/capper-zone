@@ -11,7 +11,6 @@
   background: #f4f6f8;
   font-synthesis: none;
   font-weight: 400;
-  font-smooth: always;
 }
 * {
   box-sizing: border-box;
@@ -416,7 +415,13 @@ select {
   color: #8595a0;
   margin: 0 11px;
 }
-.game-pick {
+.game-outcome {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+.game-pick,
+.game-expectation {
   border: 0;
   border-radius: 6px;
   background: #eef5f2;

@@ -13,9 +13,12 @@ fn normalizes_franchises_ties_and_unplayed_games() {
     assert_eq!(games[0].home_team, "LV");
     assert_eq!(games[0].away_team, "LAC");
     assert_eq!(games[0].result, Some(Outcome::Tie));
+    assert_eq!(games[0].round, 1);
+    assert_eq!(games[0].round_label, "REG");
     assert!(games[0].neutral);
     assert_eq!(games[1].away_team, "LAR");
     assert_eq!(games[1].result, None);
+    assert_eq!(games[1].round, 2);
 }
 #[test]
 fn rejects_duplicate_games_bad_dates_and_one_missing_score() {
@@ -57,13 +60,15 @@ fn seeds_are_chronological_tie_aware_and_regressed_exactly_once() {
     assert_eq!(seed.ratings[0].elo, again.ratings[0].elo);
     assert!(build_seed(&history, &bytes, &cfg, b"config", 2004).is_err());
     let mut obsolete = history.clone();
-    obsolete.schema_version = 1;
-    assert!(
-        build_seed(&obsolete, &bytes, &cfg, b"config", 2003)
-            .unwrap_err()
-            .to_string()
-            .contains("rerun history-importer")
-    );
+    for version in [1, 2] {
+        obsolete.schema_version = version;
+        assert!(
+            build_seed(&obsolete, &bytes, &cfg, b"config", 2003)
+                .unwrap_err()
+                .to_string()
+                .contains("rerun history-importer")
+        );
+    }
     let mut leaked = history;
     leaked.games[0].season = 2003;
     assert!(build_seed(&leaked, &bytes, &cfg, b"config", 2003).is_err());
@@ -94,8 +99,13 @@ fn generic_json_adapter_has_no_nfl_team_count_dependency() {
             row
         })
         .collect();
-    let input = serde_json::json!({"schema_version":1,"league":"demo","games":source_games});
+    let mut input = serde_json::json!({"schema_version":2,"league":"demo","games":source_games});
     assert_eq!(parse_source(&input.to_string(), &cfg).unwrap().len(), 2);
+    input["games"][0]["round"] = serde_json::json!(0);
+    assert!(parse_source(&input.to_string(), &cfg).is_err());
+    input["games"][0]["round"] = serde_json::json!(1);
+    input["schema_version"] = serde_json::json!(1);
+    assert!(parse_source(&input.to_string(), &cfg).is_err());
 }
 
 #[test]
@@ -149,7 +159,7 @@ fn elo_replay_scores_before_updates_and_regresses_only_at_boundaries() {
     let mut next = games[0].clone();
     next.id = "next-season".into();
     next.season = 2003;
-    next.kickoff_utc = "2003-09-01T17:00:00Z".parse().unwrap();
+    next.start_time_utc = "2003-09-01T17:00:00Z".parse().unwrap();
     next.result = Some(Outcome::Tie);
     games.insert(0, next);
     let replay = replay_elo(&games, &cfg, 2003).unwrap();

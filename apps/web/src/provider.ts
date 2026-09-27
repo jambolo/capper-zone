@@ -1,4 +1,4 @@
-import { parse } from 'csv-parse/sync';
+import { parse } from 'csv-parse/browser/esm/sync';
 import { DateTime } from 'luxon';
 import { z } from 'zod';
 import { validateGames, type Game, type LeagueConfig } from './contracts.ts';
@@ -9,7 +9,7 @@ export function parseSource(text: string, config: LeagueConfig): Game[] {
   if (config.source.kind === 'canonical-json') {
     const data = z
       .object({
-        schema_version: z.literal(1),
+        schema_version: z.literal(2),
         league: z.literal(config.id),
         games: z.array(z.unknown()),
       })
@@ -64,8 +64,8 @@ export function parseSource(text: string, config: LeagueConfig): Game[] {
       time: r.gametime || null,
       timezone: 'America/New_York',
       phase: r.game_type === 'REG' ? 'regular' : 'postseason',
-      round: r.game_type,
-      week: Number(r.week),
+      round_label: r.game_type,
+      round: Number(r.week),
       home_team: canonical(r.home_team),
       away_team: canonical(r.away_team),
       neutral: r.location === 'Neutral',

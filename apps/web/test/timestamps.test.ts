@@ -15,11 +15,11 @@ it.each([
   ['2002-04-07', '02:30', 'America/New_York', '2002-04-07T05:00:00Z'],
 ] as const)('normalizes %s %s in %s consistently with Rust', (date, time, timezone, expected) => {
   const [g] = validateGames([game({ date, time, timezone })], config);
-  expect(g.kickoff_utc).toBe(expected);
+  expect(g.start_time_utc).toBe(expected);
   expect([g.date, g.time, g.timezone]).toEqual([date, time, timezone]);
 });
 
-it('sorts by season, UTC kickoff, then byte-ordered ID across timezones', () => {
+it('sorts by season, UTC start time, then byte-ordered ID across timezones', () => {
   const games = validateGames(
     [
       game({ id: 'later', date: '2026-09-01', time: '23:30', timezone: 'America/Los_Angeles' }),
@@ -39,7 +39,7 @@ it('rejects missing dates, unknown zones, and dates without local midnight', () 
   expect(() => validateGames([{ ...game(), date: undefined }], config)).toThrow();
   expect(() => validateGames([game({ timezone: 'Mars/Olympus' })], config)).toThrow();
   expect(() => validateGames([game({ date: '2011-12-30', time: null, timezone: 'Pacific/Apia' })], config)).toThrow(/midnight/);
-  expect(validateGames([{ ...game(), time: undefined }], config)[0].kickoff_utc).toBe('2026-09-01T04:00:00Z');
+  expect(validateGames([{ ...game(), time: undefined }], config)[0].start_time_utc).toBe('2026-09-01T04:00:00Z');
 });
 
 it('backtesting trains only on earlier UTC dates when local dates disagree', () => {

@@ -77,8 +77,8 @@ export default function App() {
   const teams = [...(state?.teams ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? id;
   const teamLabel = (id: string) => teams.find((t) => t.id === id)?.abbreviation ?? id;
-  const games = (state?.games ?? []).filter((g) => g.status === tab && (week === 'all' || String(g.week) === week));
-  const weeks = [...new Set((state?.games ?? []).map((g) => g.week))].sort((a, b) => a - b);
+  const games = (state?.games ?? []).filter((g) => g.status === tab && (week === 'all' || String(g.round) === week));
+  const weeks = [...new Set((state?.games ?? []).map((g) => g.round))].sort((a, b) => a - b);
   return (
     <>
       <header className="topbar">
@@ -294,6 +294,7 @@ export default function App() {
                     Awaiting result
                   </button>
                 </div>
+                {tab === 'completed' && <p className="muted">Pregame expectations use prior-day results only.</p>}
                 <div className="game-list">
                   {games.length === 0 ? (
                     <p className="empty">No games in this view.</p>
@@ -301,7 +302,7 @@ export default function App() {
                     games.map((g) => (
                       <article className="game" key={g.id}>
                         <div className="game-meta">
-                          {g.date} · Week {g.week} {g.phase === 'postseason' && '· Playoffs'} {g.neutral && '· Neutral'}
+                          Kickoff {g.date} · Week {g.round} {g.phase === 'postseason' && '· Playoffs'} {g.neutral && '· Neutral'}
                         </div>
                         <div className="game-row">
                           <div>
@@ -310,9 +311,19 @@ export default function App() {
                             <strong title={teamName(g.home_team)}>{teamLabel(g.home_team)}</strong>
                           </div>
                           {g.status === 'completed' ? (
-                            <span className="result-label">
-                              {g.result === 'tie' ? 'Tie' : `${teamLabel(g.result === 'home_win' ? g.home_team : g.away_team)} won`}
-                            </span>
+                            <div className="game-outcome">
+                              <span className="result-label">
+                                {g.result === 'tie'
+                                  ? 'Tie'
+                                  : `${teamLabel(g.result === 'home_win' ? g.home_team : g.away_team)} won`}
+                              </span>
+                              {g.prediction && (
+                                <span className="game-expectation">
+                                  Expected: {teamLabel(g.prediction.home_win >= g.prediction.away_win ? g.home_team : g.away_team)}{' '}
+                                  {percent(Math.max(g.prediction.home_win, g.prediction.away_win))}
+                                </span>
+                              )}
+                            </div>
                           ) : g.prediction ? (
                             <button
                               className="game-pick"

@@ -1,0 +1,383 @@
+{
+  "config": {
+    "schema_version": 1,
+    "id": "nfl",
+    "name": "NFL",
+    "history_start": 2002,
+    "season_rollover_month": 3,
+    "source": {
+      "kind": "canonical-json",
+      "url": "https://invalid.example.test/offline"
+    },
+    "teams": [
+      {
+        "id": "ARI",
+        "name": "Arizona Cardinals",
+        "location": "Arizona",
+        "eras": [
+          {
+            "from_season": 2002,
+            "through_season": null,
+            "name": "Arizona Cardinals",
+            "location": "Arizona",
+            "source_ids": [
+              "ARI"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ATL",
+        "name": "Atlanta Falcons",
+        "location": "Atlanta",
+        "eras": [
+          {
+            "from_season": 2002,
+            "through_season": null,
+            "name": "Atlanta Falcons",
+            "location": "Atlanta",
+            "source_ids": [
+              "ATL"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "BAL",
+        "name": "Baltimore Ravens",
+        "location": "Baltimore",
+        "eras": [
+          {
+            "from_season": 2002,
+            "through_season": null,
+            "name": "Baltimore Ravens",
+            "location": "Baltimore",
+            "source_ids": [
+              "BAL"
+            ]
+          }
+        ]
+      }
+    ],
+    "aliases": {},
+    "ties_allowed_in": [
+      "regular"
+    ],
+    "elo": {
+      "initial": 1500,
+      "scale": 400,
+      "k": 40,
+      "home_advantage": 45,
+      "offseason_regression": 0.383333
+    },
+    "bayesian": {
+      "prior_sd_elo": 150,
+      "tie_prior_games": 100,
+      "tie_prior_rate": 0.005
+    },
+    "elo_tune": {
+      "tune_start": 2010,
+      "tune_end": 2022,
+      "test_end": 2025
+    }
+  },
+  "seed": {
+    "schema_version": 1,
+    "league": "nfl",
+    "target_season": 2025,
+    "through_season": 2024,
+    "generated_at": "2025-08-01T00:00:00Z",
+    "history_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "config_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "settings": {
+      "initial": 1500,
+      "scale": 400,
+      "k": 40,
+      "home_advantage": 45,
+      "offseason_regression": 0.383333
+    },
+    "completed_games": 100,
+    "tied_games": 1,
+    "tie_weight": 0.02,
+    "ratings": [
+      {
+        "team": "ARI",
+        "elo": 1700,
+        "games": 10
+      },
+      {
+        "team": "ATL",
+        "elo": 1400,
+        "games": 10
+      },
+      {
+        "team": "BAL",
+        "elo": 1500,
+        "games": 10
+      }
+    ],
+    "audit": []
+  },
+  "games": [
+    {
+      "id": "g0",
+      "league": "nfl",
+      "season": 2025,
+      "start_time_utc": "2025-09-01T17:00:00Z",
+      "phase": "regular",
+      "round_label": "REG",
+      "round": 1,
+      "home_team": "ARI",
+      "away_team": "ATL",
+      "home_source_id": "ARI",
+      "away_source_id": "ATL",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "g1",
+      "league": "nfl",
+      "season": 2025,
+      "start_time_utc": "2025-09-02T17:00:00Z",
+      "phase": "regular",
+      "round_label": "REG",
+      "round": 2,
+      "home_team": "BAL",
+      "away_team": "ARI",
+      "home_source_id": "BAL",
+      "away_source_id": "ARI",
+      "neutral": true,
+      "result": "tie"
+    },
+    {
+      "id": "g2",
+      "league": "nfl",
+      "season": 2025,
+      "start_time_utc": "2025-09-03T17:00:00Z",
+      "phase": "regular",
+      "round_label": "REG",
+      "round": 3,
+      "home_team": "ATL",
+      "away_team": "BAL",
+      "home_source_id": "ATL",
+      "away_source_id": "BAL",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "g3",
+      "league": "nfl",
+      "season": 2025,
+      "start_time_utc": "2025-09-04T17:00:00Z",
+      "phase": "postseason",
+      "round_label": "WC",
+      "round": 4,
+      "home_team": "ARI",
+      "away_team": "BAL",
+      "home_source_id": "ARI",
+      "away_source_id": "BAL",
+      "neutral": true,
+      "result": "away_win"
+    }
+  ],
+  "cases": [
+    {
+      "training_count": 0,
+      "means": [
+        1.151292546497023,
+        -0.5756462732485115,
+        0
+      ],
+      "covariance": [
+        [
+          0.7455794217860249,
+          0,
+          0
+        ],
+        [
+          0,
+          0.7455794217860249,
+          0
+        ],
+        [
+          0,
+          0,
+          0.7455794217860249
+        ]
+      ],
+      "predictions": [
+        {
+          "home": "ARI",
+          "away": "ATL",
+          "neutral": false,
+          "phase": "regular",
+          "home_win": 0.8230125876002964,
+          "away_win": 0.17056546132817327,
+          "tie": 0.0064219510715302006,
+          "home_probability_interval": [
+            0.3956514002425815,
+            0.9854430796475301
+          ]
+        },
+        {
+          "home": "BAL",
+          "away": "ARI",
+          "neutral": true,
+          "phase": "regular",
+          "home_win": 0.28721383168033976,
+          "away_win": 0.7050216046574967,
+          "tie": 0.007764563662163451,
+          "home_probability_interval": [
+            0.027974177201049437,
+            0.7695160144920783
+          ]
+        },
+        {
+          "home": "ARI",
+          "away": "BAL",
+          "neutral": false,
+          "phase": "postseason",
+          "home_win": 0.7508212340589038,
+          "away_win": 0.2491787659410958,
+          "tie": 0,
+          "home_probability_interval": [
+            0.27228073024705496,
+            0.9781988118682109
+          ]
+        }
+      ]
+    },
+    {
+      "training_count": 1,
+      "means": [
+        1.2311711077092118,
+        -0.6555248344607003,
+        0
+      ],
+      "covariance": [
+        [
+          0.699691487543225,
+          0.045887934242799834,
+          0
+        ],
+        [
+          0.04588793424279983,
+          0.699691487543225,
+          0
+        ],
+        [
+          0,
+          0,
+          0.7455794217860249
+        ]
+      ],
+      "predictions": [
+        {
+          "home": "ARI",
+          "away": "ATL",
+          "neutral": false,
+          "phase": "regular",
+          "home_win": 0.8464354753606885,
+          "away_win": 0.14742106814273603,
+          "tie": 0.00614345649657546,
+          "home_probability_interval": [
+            0.4714252781943599,
+            0.9855436776883898
+          ]
+        },
+        {
+          "home": "BAL",
+          "away": "ARI",
+          "neutral": true,
+          "phase": "regular",
+          "home_win": 0.27333384703494645,
+          "away_win": 0.7189924718936643,
+          "tie": 0.007673681071389537,
+          "home_probability_interval": [
+            0.026836401323527832,
+            0.748500005489544
+          ]
+        },
+        {
+          "home": "ARI",
+          "away": "BAL",
+          "neutral": false,
+          "phase": "postseason",
+          "home_win": 0.763882760361284,
+          "away_win": 0.23611723963871586,
+          "tie": 0,
+          "home_probability_interval": [
+            0.296068810619667,
+            0.9790923853407585
+          ]
+        }
+      ]
+    },
+    {
+      "training_count": 4,
+      "means": [
+        0.8061853642653576,
+        -0.847105721844758,
+        0.6165666308279119
+      ],
+      "covariance": [
+        [
+          0.5522576659653685,
+          0.053225322799043066,
+          0.14009643302161334
+        ],
+        [
+          0.05322532279904305,
+          0.62447029393006,
+          0.06788380505692174
+        ],
+        [
+          0.14009643302161334,
+          0.06788380505692176,
+          0.5375991837074897
+        ]
+      ],
+      "predictions": [
+        {
+          "home": "ARI",
+          "away": "ATL",
+          "neutral": false,
+          "phase": "regular",
+          "home_win": 0.8266245556394894,
+          "away_win": 0.1667654970915403,
+          "tie": 0.006609947268970045,
+          "home_probability_interval": [
+            0.46653174192760355,
+            0.9782470766179351
+          ]
+        },
+        {
+          "home": "BAL",
+          "away": "ARI",
+          "neutral": true,
+          "phase": "regular",
+          "home_win": 0.4555010576859906,
+          "away_win": 0.5354384422200562,
+          "tie": 0.009060500093952234,
+          "home_probability_interval": [
+            0.12338523507270603,
+            0.8221550515987003
+          ]
+        },
+        {
+          "home": "ARI",
+          "away": "BAL",
+          "neutral": false,
+          "phase": "postseason",
+          "home_win": 0.5944770217281761,
+          "away_win": 0.40552297827182376,
+          "tie": 0,
+          "home_probability_interval": [
+            0.2116556172974384,
+            0.9013480639653247
+          ]
+        }
+      ]
+    }
+  ]
+}

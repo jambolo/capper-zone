@@ -95,7 +95,7 @@ All dependencies and toolchains taken to the latest stable release, accepting br
 
 ## UTC history normalization, 2026-09-26
 
-- Historical imports write schema version 2 with required `kickoff_utc` and no `date`, `time`, or `timezone`.
+- Historical imports store an authoritative UTC start time with no `date`, `time`, or `timezone`.
   Source-local conversion and warnings run only in the importer. Elo replay and tuning use the stored UTC
   timestamp; schema 1 histories require reimporting. The current-season browser retains local fields.
 - Regression fixtures cover seasonal offsets, UTC date rollover, mixed-timezone shared-team replay,
@@ -108,6 +108,19 @@ All dependencies and toolchains taken to the latest stable release, accepting br
   simultaneous outcomes even when local dates disagree.
 - Passed: 24 Rust tests, Clippy with warnings as errors, Rust formatting, 34 web tests, ESLint, Prettier,
   TypeScript strict checking, and the Vite production build.
+
+## League-independent game fields, 2026-09-27
+
+- Shared contracts use `start_time_utc`, numeric `round`, and `round_label`. Historical output is schema 3;
+  canonical provider responses and browser caches are schema 2. Configuration and Elo seeds remain schema 1.
+- NFL source columns and page labels retain football terminology. Adapter tests verify that numeric rounds
+  and provider labels remain separate, and existing Super Bowl completeness checks use `round_label`.
+- Tests reject obsolete history/provider versions and invalid round indices. An obsolete browser cache is
+  preserved on a failed refresh and replaced with schema 2 after a successful download.
+- Migrated the local 6,499-game history with a backup and regenerated its 2026 Elo seed. Every game value,
+  rating, audit entry, and tie value is unchanged; the new history and configuration hashes match the seed.
+- Passed: 24 Rust tests, Clippy with warnings as errors, Rust formatting, 38 web tests, ESLint, Prettier,
+  TypeScript strict checking, the Vite production build, and TypeDoc generation.
 
 ## Scope
 

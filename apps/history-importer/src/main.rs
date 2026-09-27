@@ -43,7 +43,7 @@ fn main() -> Result<()> {
             ensure!(
                 games
                     .iter()
-                    .any(|g| g.season == year && g.round == "SB" && g.result.is_some()),
+                    .any(|g| g.season == year && g.round_label == "SB" && g.result.is_some()),
                 "Season {year} has no completed Super Bowl; previous file has been kept"
             );
         }

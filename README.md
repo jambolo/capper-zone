@@ -1,7 +1,7 @@
 # Capper Zone
 
-Game results prediction: two Rust command-line programs build historical ratings, a third evaluates Elo
-parameter choices, and a TypeScript browser app turns ratings into matchup probabilities. The browser app
+Game results prediction: two Rust command-line programs build historical ratings, two evaluate Elo and
+Bayesian parameter choices, and a TypeScript browser app turns ratings into matchup probabilities. The browser app
 is a static site — there is no database server, API key, subscription, or backend to configure.
 
 | App | Path | Kind | Run |
@@ -9,16 +9,18 @@ is a static site — there is no database server, API key, subscription, or back
 | history-importer | `apps/history-importer` | Rust CLI | `cargo run --release -p history-importer` |
 | elo-ratings | `apps/elo-ratings` | Rust CLI | `cargo run --release -p elo-ratings` |
 | elo-tune | `apps/elo-tune` | Rust CLI | `cargo run --release -p elo-tune` |
+| bayes-tune | `apps/bayes-tune` | Rust CLI | `cargo run --release -p bayes-tune` |
 | web | `apps/web` | TypeScript browser app (Vite + React) | `pnpm -C apps/web dev` |
 
-`crates/rating-core` holds the shared Rust data contracts, adapters, file IO, and Elo replay. It is a library.
+`crates/rating-core` holds the shared Rust data contracts, adapters, file IO, Elo replay, and Bayesian model. It is a library.
 
 ## What each program does
 
 1. **`history-importer` — Rust:** downloads historical game outcomes into JSON text files.
 2. **`elo-ratings` — Rust:** reads those files, replays games chronologically, and writes preseason Elo ratings and a per-game audit trail.
 3. **`elo-tune` — Rust:** searches Elo parameters against saved historical games and reports tuning and held-out evaluation; it never changes configuration or data files.
-4. **`web` — TypeScript:** a static React app. On every page load it downloads the current season and updates a Bayesian model seeded by the historical Elo ratings, entirely in the browser.
+4. **`bayes-tune` — Rust:** searches Bayesian prior uncertainty and tie smoothing against saved history with Elo settings fixed; reports tuning and held-out evaluation without changing inputs.
+5. **`web` — TypeScript:** a static React app. On every page load it downloads the current season and updates a Bayesian model seeded by the historical Elo ratings, entirely in the browser.
 
 ## Quick start
 
@@ -69,12 +71,9 @@ injuries, play-by-play, and betting markets are neither stored in normalized gam
 rating model. A missing pair of scores is an unplayed/unreported outcome, never a tie. The importer verifies
 that every requested historical NFL season has a completed Super Bowl before replacing the history file.
 
-Import converts source-local dates and times to `kickoff_utc` and sorts by season, UTC kickoff, and game ID.
-Historical games store this authoritative UTC timestamp; `date`, `time`, and `timezone` are discarded.
-Conversion and warnings happen only during import. Missing source dates fail the import. Missing times and
-times in a daylight saving gap use local midnight; repeated times during a daylight saving overlap use the
-earlier occurrence. The importer warns about each such time on stderr. If local midnight does not exist,
-import fails. Elo ratings and tuning read the stored UTC timestamp without reconstructing local time.
+Imported games are ordered chronologically using UTC start times. The importer reports missing-time and
+daylight saving adjustments on stderr and rejects games whose dates cannot be resolved. See
+[docs/extending.md](docs/extending.md) for timestamp rules and data formats.
 
 **Current results have a deliberate delay:** nflverse's CSV has no explicit live/final status. The app
 refreshes the entire current-season snapshot on load, but only results from *earlier calendar dates in
@@ -88,24 +87,10 @@ All persisted data is readable, formatted JSON under `data/<league>/`:
 
 | File | Written by | Contents |
 | --- | --- | --- |
-| `history.json` | Rust importer | Schema 2: games with required `kickoff_utc` and no local time fields, plus the effective-season franchise identity registry, through the season before the target season |
-| `elo-2026.json` | Rust Elo calculator | 2026 preseason ratings, model settings, source/configuration hashes, tie parameter, per-game Elo audit |
+| `history.json` | Rust importer | Completed games through the season before the target season, plus the effective-season franchise identity registry |
+| `elo-<target-season>.json` | Rust Elo calculator | Preseason ratings for the target season, model settings, source/configuration hashes, tie parameter, per-game Elo audit |
 
-**History format upgrade:** historical readers require schema version 2 and a valid RFC 3339 timestamp
-with an offset for every `kickoff_utc`; imports serialize UTC with `Z`. Schema 1 histories must be reimported,
-then their Elo seeds regenerated because the history hash changes. For the default current-season setup:
-
-```bash
-cargo run --release -p history-importer
-cargo run --release -p elo-ratings
-```
-
-For an explicit historical target, preserve the original season and data-directory options. Source provider
-responses, league configuration, Elo seeds, and the browser's current-season cache remain schema version 1.
-The current-season browser keeps local fields for display and the Eastern-date result eligibility rule.
-
-The year is selected from the current UTC date using the configured rollover month. NFL seasons roll over in
-**March**: January and February belong to the preceding season. Explicit `--season` / `--target-season` /
+By default, the year is selected from the current UTC date using the configured rollover month. Explicit `--season` / `--target-season` /
 `--through-season` arguments override the selection.
 
 Rust writes use a temporary file in the same directory, flush it, and atomically rename it, under an
@@ -125,17 +110,17 @@ or aliases, rerun the importer first, then Elo, so every saved file contains the
 
 ## Model choices
 
-These are explicit, configurable starting settings, **not tuned or validated claims of predictive accuracy**:
+Model settings are configurable in [config/nfl.json](config/nfl.json). The current NFL settings are:
 
-| Parameter | Default |
+| Parameter | Configured value |
 | --- | --- |
 | Initial Elo | 1500 |
 | Elo scale | 400 |
-| Elo update factor K | 20 |
-| Home advantage | 55 Elo points; zero at neutral venues |
-| Offseason regression | One third of the distance toward 1500 each season |
-| Bayesian prior standard deviation | 150 Elo points per team |
-| Tie smoothing | 100 pseudo-games with a 0.5% tie rate |
+| Elo update factor K | 40 |
+| Home advantage | 45 Elo points; zero at neutral venues |
+| Offseason regression | 38.3333% of the distance toward 1500 each season |
+| Bayesian prior standard deviation | 100 Elo points per team |
+| Tie smoothing | Approximately 212.132 pseudo-games with a 0.707107% tie rate |
 
 Elo uses results of 1, 0, or 0.5 for wins, losses, or ties. All included games have the same K; a playoff win
 has the same update rule as a regular-season win. Historical ratings carry between years with offseason
@@ -150,6 +135,11 @@ probability zero. See [docs/model.md](docs/model.md) for formulas and limitation
 The app includes any-two-team matchup selection, neutral-site and game-phase options, win/tie/loss
 probabilities, a probability credible interval, the current schedule/results, and a table of preseason and
 current team-strength estimates.
+
+Completed games show the actual result alongside the expected winner and win probability reconstructed
+from the preseason seed and results before the game's start date. The cutoff is midnight Eastern Time for NFL
+data and midnight UTC for canonical providers. Same-day and later outcomes are excluded because the data
+does not record game-end timestamps.
 
 ## Commands and configuration
 
@@ -236,6 +226,62 @@ selected settings performed better. The report does not claim an improvement is 
 or inconsistent; limited held-out seasons constrain
 inference. Repeatedly changing the search after reading holdout scores would invalidate that evaluation.
 
+## Bayesian parameter tuning
+
+`bayes-tune` reads `data/nfl/history.json` and searches `bayesian.prior_sd_elo`,
+`bayesian.tie_prior_games`, and `bayesian.tie_prior_rate`. All Elo settings remain fixed. It runs entirely
+offline, does not read published Elo seeds, and never modifies configuration or historical data.
+
+```powershell
+cargo run --release -p bayes-tune
+cargo run --release -p bayes-tune -- --report-dir target
+cargo run --release -p bayes-tune -- --config config/nfl.json --data-dir data --tune-start 2010 --tune-end 2022 --test-end 2025
+```
+
+The optional `bayes_tune` configuration section takes `tune_start`, `tune_end`, and `test_end`, just like
+`elo_tune`. When absent, `elo_tune` supplies the defaults; CLI options override individual boundaries.
+Without either section, all three CLI boundaries are required. The included configuration therefore uses
+2002–2009 for warm-up, 2010–2022 for selection, and 2023–2025 for held-out evaluation. At least one warm-up
+season, two tuning seasons, and one later completed held-out season are required. History validation is
+shared with `elo-tune`, including the completed Super Bowl check for NFL source data.
+
+For each evaluated season, preseason Elo and the tie estimate use only earlier seasons. Elo replay and
+historical matchup differences are cached across candidates; tie weights are cached by smoothing pair.
+Each UTC date is predicted from a fresh fit using only earlier dates in that season. Same-day outcomes
+cannot influence one another. The Rust model matches the browser's Davidson likelihood, Laplace covariance,
+and Simpson integration, with a shared numerical fixture tested in both languages. Team strength resets to
+the newly generated preseason prior at each season boundary; Bayesian posteriors do not carry across seasons.
+
+The initial grid has 120 combinations:
+
+| Parameter | Search values |
+| --- | --- |
+| `prior_sd_elo` | 50, 75, 100, 150, 200, 300 |
+| `tie_prior_games` | 10, 30, 100, 300, 1000 |
+| `tie_prior_rate` | 0.001, 0.0025, 0.005, 0.01 |
+
+Current settings are also included. The three best initial candidates receive one local refinement using
+each parameter multiplied by `1/sqrt(2)`, `1`, or `sqrt(2)`; rates must stay below 1. Duplicate candidates
+are skipped. This is a bounded search, not a guarantee of a global optimum.
+
+Selection minimizes equally weighted **season mean log loss**, using natural logs and all three outcomes.
+Among candidates within one paired-season standard error of the minimum, it prefers the smallest sum of
+squared log parameter ratios relative to current settings, breaking ties by log loss. The report identifies
+both this conservative selection and the absolute minimum. Rare ties may leave smoothing parameters weakly
+identified; this preference is a stability heuristic, not a significance test.
+
+Only after selection is frozen are current and selected settings evaluated on the held-out seasons.
+Earlier held-out outcomes can inform later predictions but never change selected parameters. Holdout validity
+also requires that these seasons did not influence Elo settings or earlier search choices.
+
+JSON goes to stdout; progress goes to stderr. `--report-dir` also writes
+`bayes-tuning-report-<league>-<UTC run date>.json`, replacing a same-day report for that league. Reports include
+input hashes, fixed Elo settings, the search grid and refinement, top candidates, per-season and pooled log
+loss/Brier scores, first/second season halves, per-outcome calibration, expected versus observed ties, and
+paired season differences. Brier score sums squared errors across all three outcomes. Positive log-loss
+improvement means the selected parameters performed better. Configuration changes remain a separate action;
+after changing parameters, regenerate Elo seeds because configuration hashes and tie weights must agree.
+
 ## Bayesian backtesting
 
 The included backtest predicts each game using only results from earlier **UTC dates**. Outcomes on the same
@@ -276,10 +322,11 @@ validation rules.
 | `apps/history-importer/` | Rust historical-download executable |
 | `apps/elo-ratings/` | Rust Elo executable |
 | `apps/elo-tune/` | Offline Elo parameter search and held-out evaluation |
+| `apps/bayes-tune/` | Offline Bayesian parameter search with fixed Elo and held-out evaluation |
 | `apps/web/src/` | Browser app: contracts, provider adapters, Bayesian model, service, React interface |
 | `apps/web/test/` | Prediction, provider, startup/cache, and identity tests |
 | `apps/web/scripts/` | Node backtest |
-| `crates/rating-core/` | Shared Rust data contracts, adapters, file IO, and Elo replay |
+| `crates/rating-core/` | Shared Rust data contracts, adapters, file IO, Elo replay, Bayesian model, and tuning validation |
 | `config/` | League and model settings |
 | `docs/` | Statistical model, extension guide, franchise history, verification record |
 
@@ -287,10 +334,6 @@ Dependency versions are recorded in `apps/web/pnpm-lock.yaml` and `Cargo.lock`. 
 holds the pnpm settings; esbuild is the only dependency allowed to run an install script. pnpm 12 verifies the
 lockfile against a supply-chain cooldown, so a lockfile regenerated within 24 hours of a dependency's release
 will be rejected until that release ages out.
-
-TypeScript is held at 6.x. TypeScript 7 type-checks this project cleanly, but `typescript-eslint` 8.70.0 refuses
-to load against it (see [typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940))
-and `typedoc` 0.28.20 crashes, which would break `pnpm lint` and `pnpm run docs`.
 
 `pnpm run docs` needs the explicit `run`: pnpm 12 has its own `docs` subcommand that shadows the script.
 
