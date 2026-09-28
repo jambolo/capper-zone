@@ -125,7 +125,8 @@ current use.
 
 The [production artwork package](branding/production/README.md) provides outlined
 SVG logos, PNG exports, and favicon files using the selected tagline and primary
-navy color treatment. The package is prepared for use; the app has not been rebranded.
+navy color treatment. The web app uses the production logo and browser icons,
+approved messaging and palette, and locally hosted Barlow Condensed and Inter fonts.
 
 The [September 28 availability check](branding/rally-row-availability-2026-09-28.md)
 found rallyrow.com and the exact handles on Instagram, X, TikTok, and YouTube
@@ -161,6 +162,7 @@ Status: Rally Row is the selected brand name. The tagline, homepage headline,
 supporting copy, primary button label, visual direction, and interface headline
 typography are approved.
 The short description and methodology summary are approved.
-Production SVG and PNG artwork and derived favicon files are prepared.
+Production SVG and PNG artwork and derived favicon files are prepared. The web app
+incorporates the approved identity; repository and hosting names are managed separately.
 
 Updated September 28, 2026.

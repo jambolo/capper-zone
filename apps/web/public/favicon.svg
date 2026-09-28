@@ -1,4 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#101d2d" />
-  <path d="M9 23 23 9M10 9h13v13" fill="none" stroke="#dc8b23" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="title"><title id="title">Rally Row</title><rect width="64" height="64" rx="13" fill="#101B2D"/><g transform="translate(6 15) scale(.11954)"><path fill="#F5F7FB" d="M38 0H356C405 0 435 34 435 83C435 130 415 160 370 175L435 286H360L265 123H320C334 123 344 114 344 100C344 86 334 76 320 76H88Z"/><path fill="#2667FF" d="M22 103H215C229 103 236 109 243 121L335 286H267L202 179C196 169 190 165 178 165H64Z"/><path fill="#FF6B5E" d="M0 184H162C176 184 185 190 192 202L241 286H172L150 253C146 246 140 244 131 244H40Z"/></g></svg>

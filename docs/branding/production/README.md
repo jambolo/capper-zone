@@ -47,8 +47,13 @@ nominal dimensions. The stacked PNG also includes the navy background.
 
 Every icon derives from the same three master paths used in the logo. The favicon
 omits lettering and adds a navy tile so its colors remain consistent on browser
-tabs with light or dark backgrounds. These files are prepared for integration;
-the app's existing favicon has not been replaced.
+tabs with light or dark backgrounds. The web app uses the SVG and ICO favicons and
+Apple touch icon, copied into `apps/web/public`, along with the primary horizontal
+logo in `apps/web/public/brand`. Keep these published copies aligned with the masters.
+
+The app's interface fonts and their licenses are hosted in `apps/web/public/fonts`.
+Barlow Condensed Bold comes from [Google Fonts](https://github.com/google/fonts/tree/main/ofl/barlowcondensed);
+Inter comes from this package's source files.
 
 ## Usage
 
