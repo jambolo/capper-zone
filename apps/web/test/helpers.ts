@@ -22,7 +22,7 @@ export function seed(): EloSeed {
     completed_games: 100,
     tied_games: 1,
     tie_weight: 0.02,
-    ratings: config.teams.map((t) => ({ team: t.id, elo: 1500, games: 1 })),
+    ratings: config.teams.map((t) => ({ team: t.id, elo: config.elo.initial, games: 1 })),
   };
 }
 export function game(overrides: Partial<Game> = {}): Game {

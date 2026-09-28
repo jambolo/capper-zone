@@ -49,10 +49,10 @@ fn seeds_are_chronological_tie_aware_and_regressed_exactly_once() {
     let bytes = serde_json::to_vec(&history).unwrap();
     let seed = build_seed(&history, &bytes, &cfg, b"config", 2003).unwrap();
     let lv = seed.ratings.iter().find(|t| t.team == "LV").unwrap();
-    assert!((lv.elo - (1500.0 + 10.0 * 2.0 / 3.0)).abs() < 1e-9);
+    assert!((lv.elo - (cfg.elo.initial + 10.0 * 2.0 / 3.0)).abs() < 1e-9);
     assert_eq!(seed.completed_games, 1); // Scheduled game is not an observation.
-    assert_eq!(seed.audit[0].home_before, 1500.0);
-    assert_eq!(seed.audit[0].home_after, 1510.0);
+    assert_eq!(seed.audit[0].home_before, cfg.elo.initial);
+    assert_eq!(seed.audit[0].home_after, cfg.elo.initial + 10.0);
     assert!(seed.tie_weight > 0.0);
     let mut reversed = history.clone();
     reversed.games.reverse();
@@ -144,8 +144,8 @@ fn relocation_preserves_one_rating_history_and_original_source_ids() {
     let output = build_seed(&history, b"history", &cfg, b"config", 2021).unwrap();
     let team = output.ratings.iter().find(|t| t.team == "LV").unwrap();
     assert_eq!(team.games, 2);
-    assert!(team.elo > 1500.0);
-    assert!(output.audit[1].home_before > 1500.0); // Rename did not reset the rating.
+    assert!(team.elo > cfg.elo.initial);
+    assert!(output.audit[1].home_before > cfg.elo.initial); // Rename did not reset the rating.
     assert!(parse_source(&input.replace("OAK", "LV"), &cfg).is_err());
 }
 
@@ -165,13 +165,13 @@ fn elo_replay_scores_before_updates_and_regresses_only_at_boundaries() {
     let replay = replay_elo(&games, &cfg, 2003).unwrap();
     assert_eq!(replay.audit.len(), 2);
     assert_eq!(replay.audit[0].expected_home_score, 0.5);
-    assert_eq!(replay.audit[0].home_after, 1510.0);
-    assert_eq!(replay.audit[1].home_before, 1505.0);
-    assert_eq!(replay.audit[1].away_before, 1495.0);
+    assert_eq!(replay.audit[0].home_after, cfg.elo.initial + 10.0);
+    assert_eq!(replay.audit[1].home_before, cfg.elo.initial + 5.0);
+    assert_eq!(replay.audit[1].away_before, cfg.elo.initial - 5.0);
     assert_eq!(replay.audit[1].observed_home_score, 0.5);
     let expected = 1.0 / (1.0 + 10_f64.powf(-10.0 / 400.0));
     assert!((replay.audit[1].expected_home_score - expected).abs() < 1e-12);
-    assert!((replay.audit[1].home_after - (1505.0 + 20.0 * (0.5 - expected))).abs() < 1e-12);
+    assert!((replay.audit[1].home_after - (cfg.elo.initial + 5.0 + 20.0 * (0.5 - expected))).abs() < 1e-12);
     let lv = replay.ratings.iter().find(|r| r.team == "LV").unwrap();
     assert_eq!(lv.elo, replay.audit[1].home_after);
     assert_eq!(lv.games, 2);

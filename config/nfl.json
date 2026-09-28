@@ -584,7 +584,7 @@
     "regular"
   ],
   "elo": {
-    "initial": 1500,
+    "initial": 1000,
     "scale": 400,
     "k": 40,
     "home_advantage": 45,

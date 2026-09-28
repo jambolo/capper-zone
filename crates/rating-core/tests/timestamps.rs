@@ -81,8 +81,8 @@ fn sorts_and_replays_shared_teams_by_utc_even_across_local_dates() {
     stored.reverse();
     let replay = replay_elo(&stored, &cfg, 2002).unwrap();
     assert_eq!(replay.audit[0].game_id, "earlier");
-    assert_eq!(replay.audit[1].home_before, 1510.0);
-    assert!(replay.audit[1].home_after < 1500.0);
+    assert_eq!(replay.audit[1].home_before, cfg.elo.initial + 10.0);
+    assert!(replay.audit[1].home_after < cfg.elo.initial);
     let mut changed = games;
     changed[0].start_time_utc = "2002-09-03T00:00:00Z".parse().unwrap();
     validate_games(&mut changed, &cfg).unwrap();
