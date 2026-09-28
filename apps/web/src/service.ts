@@ -92,7 +92,7 @@ export class PredictionService {
     const cacheKey = `game-results-prediction:${this.config.id}:current-${this.season}`;
     const now = (this.options.now ?? (() => new Date()))();
     const saved = readSnapshot(store);
-    // Input-driven invalidation is intentional; time/configuration/code invalidation is deferred.
+    // Time and model-code invalidation are deferred; configuration is checked before reusing predictions.
     const snapshot = saved?.file.league === this.config.id && saved.file.from_season === this.season ? saved : null;
     if (snapshot) {
       this.model = snapshot.model;
@@ -130,7 +130,11 @@ export class PredictionService {
           teams: this.config.teams,
           games,
         };
-        if (snapshot && JSON.stringify(games) === JSON.stringify(snapshot.file.games)) {
+        if (
+          snapshot &&
+          snapshot.model.seed.config_sha256 === this.options.configHash &&
+          JSON.stringify(games) === JSON.stringify(snapshot.file.games)
+        ) {
           this.state = { ...snapshot.state, cached: false, warning: null, checked_at: now.toISOString() };
           writeSnapshot(store, { ...snapshot, state: this.state });
           return;

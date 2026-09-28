@@ -3,7 +3,7 @@ import { PredictionService } from '../src/service.ts';
 import { fitPosterior, predict } from '../src/model.ts';
 import * as model from '../src/model.ts';
 import { readSnapshot, snapshotKey } from '../src/snapshot.ts';
-import { memoryStore, type Store } from '../src/storage.ts';
+import { digest, memoryStore, type Store } from '../src/storage.ts';
 import { config, configHash, game, historyBytes, seed } from './helpers.ts';
 
 const now = () => new Date('2026-09-19T18:00:00Z');
@@ -127,6 +127,63 @@ it('restores the fitted model and skips fitting and seed downloads for unchanged
     refreshed_at: now().toISOString(),
     checked_at: '2026-09-19T19:00:00.000Z',
   });
+});
+
+it.each([true, false])('refreshes a changed baseline with unchanged games; updated seed available: %s', async (available) => {
+  const updated = seed();
+  updated.ratings.find((t) => t.team === 'SEA')!.elo += 100;
+  updated.ratings.find((t) => t.team === 'SF')!.elo -= 100;
+  const oldConfig = structuredClone(config);
+  oldConfig.elo.initial += 500;
+  const oldHash = await digest(JSON.stringify(oldConfig));
+  const oldSeed = structuredClone(updated);
+  oldSeed.config_sha256 = oldHash;
+  oldSeed.settings = oldConfig.elo;
+  oldSeed.ratings.forEach((r) => (r.elo += 500));
+  const url = `${dataBase}/nfl/elo-2026.json`;
+  const { published, requests } = publish({ [url]: JSON.stringify(oldSeed) });
+  const store = memoryStore();
+  const first = new PredictionService({
+    config: oldConfig,
+    configHash: oldHash,
+    dataBase,
+    season: 2026,
+    now,
+    store,
+    fetchSource: async () => csv,
+  });
+  await first.initialize();
+  expect(first.getState().status).toBe('ready');
+  const saved = store.getItem(snapshotKey);
+  if (available) published[url] = JSON.stringify(updated);
+  else delete published[url];
+  requests.length = 0;
+  const second = service(store, async () => csv);
+  await second.initialize();
+  expect(requests.some((r) => r.url === url)).toBe(true);
+  expect(second.getState().status).toBe('ready');
+  if (!available) {
+    expect(second.getState().warning).toContain('initial ratings could not be loaded');
+    expect(store.getItem(snapshotKey)).toBe(saved);
+    expect(second.getState().teams).toEqual(first.getState().teams);
+    return;
+  }
+  expect(second.getState().warning).toBeNull();
+  expect(readSnapshot(store)?.model.seed.config_sha256).toBe(configHash);
+  for (const team of second.getState().teams) {
+    const old = first.getState().teams.find((t) => t.id === team.id)!;
+    expect(team.initial_elo).toBeCloseTo(old.initial_elo - 500, 10);
+    expect(team.rating).toBeCloseTo(old.rating - 500, 10);
+    expect(team.sd).toBeCloseTo(old.sd, 10);
+  }
+  for (const neutral of [true, false]) {
+    for (const phase of ['regular', 'postseason'] as const) {
+      const before = first.predict('SEA', 'SF', neutral, phase);
+      const after = second.predict('SEA', 'SF', neutral, phase);
+      for (const outcome of ['home_win', 'away_win', 'tie'] as const) expect(after[outcome]).toBeCloseTo(before[outcome], 12);
+      after.home_probability_interval.forEach((p, i) => expect(p).toBeCloseTo(before.home_probability_interval[i], 12));
+    }
+  }
 });
 
 it('announces changed data while the old predictions are still available, then commits the new snapshot', async () => {

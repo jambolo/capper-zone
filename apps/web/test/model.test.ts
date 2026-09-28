@@ -5,10 +5,10 @@ import { config, seed, game } from './helpers.ts';
 describe('Bayesian model', () => {
   it('uses the Elo seed as the prior and preserves uncertainty without results', () => {
     const s = seed();
-    s.ratings.find((t) => t.team === 'SEA')!.elo = 1700;
+    s.ratings.find((t) => t.team === 'SEA')!.elo = config.elo.initial + 200;
     const model = fitPosterior(s, [], config),
       row = teamEstimates(model).find((t) => t.id === 'SEA')!;
-    expect(row.rating).toBeCloseTo(1700, 10);
+    expect(row.rating).toBeCloseTo(config.elo.initial + 200, 10);
     expect(row.sd).toBeCloseTo(config.bayesian.prior_sd_elo, 10);
     const p = predict(model, 'SEA', 'SF', true, 'regular');
     expect(p.home_win).toBeGreaterThan(p.away_win);
@@ -27,9 +27,9 @@ describe('Bayesian model', () => {
   });
   it('treats ties as a proper third outcome and moves an overmatched favorite down', () => {
     const s = seed();
-    s.ratings.find((t) => t.team === 'SEA')!.elo = 1700;
+    s.ratings.find((t) => t.team === 'SEA')!.elo = config.elo.initial + 200;
     const model = fitPosterior(s, [game({ result: 'tie' })], config);
-    expect(teamEstimates(model).find((t) => t.id === 'SEA')!.rating).toBeLessThan(1700);
+    expect(teamEstimates(model).find((t) => t.id === 'SEA')!.rating).toBeLessThan(config.elo.initial + 200);
     expect(predict(model, 'SEA', 'SF', true, 'regular').tie).toBeGreaterThan(0);
     expect(predict(model, 'SEA', 'SF', true, 'postseason').tie).toBe(0);
     expect(() => fitPosterior(s, [game({ result: 'tie', phase: 'postseason' })], config)).toThrow(/Tie/);
