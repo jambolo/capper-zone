@@ -1,4 +1,8 @@
-# Capper Zone
+# Rally Row
+
+Rally Row helps everyday sports fans see how teams stack up. It gives them the numbers to make informed calls.
+
+Brand direction and approved messaging are in [docs/branding.md](docs/branding.md).
 
 Game results prediction: two Rust command-line programs build historical ratings, two evaluate Elo and
 Bayesian parameter choices, and a TypeScript browser app turns ratings into matchup probabilities. The browser app

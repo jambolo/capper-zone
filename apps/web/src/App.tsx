@@ -7,6 +7,15 @@ const base = import.meta.env.BASE_URL;
 const percent = (p: number) => `${(100 * p).toFixed(1)}%`;
 const number = (n: number) => Math.round(n).toLocaleString();
 
+function exploreMatchups() {
+  const matchup = document.getElementById('matchups');
+  matchup?.focus({ preventScroll: true });
+  matchup?.scrollIntoView({
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+    block: 'start',
+  });
+}
+
 export default function App() {
   const [view, setView] = useState<SessionView>({ state: null, model: null, phase: 'checking', retryAt: null, error: '' });
   const { state, model, error } = view;
@@ -63,44 +72,45 @@ export default function App() {
   return (
     <>
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-icon" aria-hidden="true">
-            ↗
-          </span>
-          <span>
-            Game Results <strong>Prediction</strong>
+        <div className="topbar-inner">
+          <a className="brand" href={base} aria-label="Rally Row home">
+            <img src={`${base}brand/rally-row-primary.svg`} width="694" height="176" alt="Rally Row" />
+          </a>
+          <p className="brand-tagline">A little insight. A lot to talk about.</p>
+          <span className="tag">
+            {state?.league ?? 'NFL'} · {state?.season ?? 'Season'}
           </span>
         </div>
-        <span className="tag">
-          {state?.league ?? 'NFL'} · {state?.season ?? 'Season'}
-        </span>
       </header>
       <main>
         <div className="intro">
-          <div>
-            <p className="eyebrow">TEAM STRENGTH / MATCHUP PROBABILITIES</p>
+          <div className="intro-copy">
+            <p className="eyebrow">A seat for every sports fan</p>
             <h1>
-              Every game starts
-              <br />
-              <span>with a probability.</span>
+              What's your <span>call?</span>
             </h1>
-            <p className="lede">Historical Elo sets the starting point. This season’s results update the picture.</p>
+            <p className="lede">
+              See how the teams stack up and who's more likely to win. Bring a little more insight to the game-day conversation.
+            </p>
+            <button className="primary-action" disabled={state?.status !== 'ready'} onClick={exploreMatchups}>
+              Explore matchups <span aria-hidden="true">↗</span>
+            </button>
           </div>
-          <div className="status-card">
+          <aside className="status-card" aria-label="Data update status">
             <span className={`status-dot ${state?.status === 'ready' ? 'ready' : ''}`} aria-hidden="true" />
             <strong>
               {view.phase === 'rebuilding'
-                ? 'Updating predictions'
+                ? 'Updating the matchup picture'
                 : view.phase === 'checking'
                   ? 'Checking for updates'
                   : view.phase === 'building'
-                    ? 'Building predictions'
+                    ? 'Getting the matchups ready'
                     : state?.status === 'ready'
                       ? state.cached
-                        ? 'Using cached results'
+                        ? 'Showing saved results'
                         : 'Up to date'
                       : state?.status === 'error'
-                        ? 'Setup needed'
+                        ? 'Matchups unavailable'
                         : 'Refreshing season'}
             </strong>
             <small>
@@ -112,28 +122,45 @@ export default function App() {
                 ? `Next check: ${new Date(view.retryAt).toLocaleTimeString()}`
                 : 'Checks on page load · at most once per minute'}
             </small>
-          </div>
+            <p className="status-policy">Today's results enter the picture the next day, Eastern Time.</p>
+          </aside>
         </div>
         {view.phase === 'rebuilding' && (
           <div role="status" className="notice">
-            Data changed. Updating predictions… Previous results remain available while the model is rebuilt.
+            Updating the matchup picture. Your previous predictions are still here while we bring in the latest results.
           </div>
         )}
         {error && (
           <div role="alert" className="notice error">
-            {error} Reload the page to try again.
+            <strong>We couldn't load the matchups.</strong>
+            <p>Please reload the page to try again.</p>
+            <details>
+              <summary>Technical details</summary>
+              <p>{error}</p>
+            </details>
           </div>
         )}
         {state?.warning && (
           <div role="status" className="notice">
-            {state.warning}
+            <p>
+              {state.cached
+                ? "We couldn't update the results. Your last saved predictions are still here."
+                : 'The matchup picture is ready. There was a note about this update.'}
+            </p>
+            <details>
+              <summary>Update details</summary>
+              <p>{state.warning}</p>
+            </details>
           </div>
         )}
         {state?.status === 'error' && (
           <div role="alert" className="notice error">
-            <strong>The model is not ready.</strong>
-            <p>{state.error}</p>
-            <p>See the README for the historical import and Elo setup commands, then rebuild and republish the site.</p>
+            <strong>We couldn't get the matchups ready.</strong>
+            <p>Please try again later.</p>
+            <details>
+              <summary>Technical details</summary>
+              <p>{state.error}</p>
+            </details>
           </div>
         )}
         {(!state || state.status === 'loading') && !error && (
@@ -141,35 +168,35 @@ export default function App() {
             <span className="spinner" />
             {view.phase === 'waiting'
               ? 'Waiting for the next data check…'
-              : 'Downloading current-season games and fitting the model…'}
+              : 'Getting the season’s results together. Your matchup picture is on its way…'}
           </section>
         )}
         {state?.status === 'ready' && (
           <>
             <section className="metrics" aria-label="Data overview">
               <div>
-                <small>HISTORICAL GAMES</small>
+                <small>Past games</small>
                 <strong>{number(state.historical_games)}</strong>
                 <span>
                   {state.history_start}–{state.season - 1} · regular + postseason
                 </span>
               </div>
               <div>
-                <small>THIS SEASON’S RESULTS</small>
+                <small>This season's results</small>
                 <strong>{state.training_games}</strong>
                 <span>Wins, losses, and ties</span>
               </div>
               <div>
-                <small>TEAMS IN THE MODEL</small>
+                <small>Teams to explore</small>
                 <strong>{state.teams.length}</strong>
-                <span>Elo priors + Bayesian updates</span>
+                <span>See how they stack up</span>
               </div>
             </section>
-            <section className="panel matchup">
+            <section className="panel matchup" id="matchups" tabIndex={-1} aria-labelledby="matchup-heading">
               <div className="section-heading">
                 <div>
-                  <p className="eyebrow">EXPLORE A MATCHUP</p>
-                  <h2>Who has the edge?</h2>
+                  <p className="eyebrow">Explore a matchup</p>
+                  <h2 id="matchup-heading">Who takes it?</h2>
                 </div>
                 <span className="chip">{phase === 'regular' ? 'Regular season' : 'Postseason'}</span>
               </div>
@@ -212,7 +239,7 @@ export default function App() {
                 </label>
                 <label className="phase-label">
                   Game type{' '}
-                  <select value={phase} onChange={(e) => setPhase(e.target.value as typeof phase)}>
+                  <select aria-label="Game type" value={phase} onChange={(e) => setPhase(e.target.value as typeof phase)}>
                     <option value="regular">Regular season</option>
                     <option value="postseason">Postseason</option>
                   </select>
@@ -229,37 +256,40 @@ export default function App() {
                     <div>
                       <span className="team-code">{teamLabel(home)}</span>
                       <strong>{percent(prediction.home_win)}</strong>
-                      <small>{teamName(home)} win</small>
+                      <small>{teamName(home)} chance of winning</small>
                     </div>
                     <div className="tie-probability">
-                      <span>TIE</span>
+                      <span>Tie</span>
                       <strong>{percent(prediction.tie)}</strong>
                       <small>
-                        {phase === 'postseason' && state.league === 'NFL' ? 'No ties in NFL playoffs' : 'Draw probability'}
+                        {phase === 'postseason' && state.league === 'NFL' ? 'No ties in NFL playoffs' : 'Chance of a tie'}
                       </small>
                     </div>
                     <div className="away-probability">
                       <span className="team-code">{teamLabel(away)}</span>
                       <strong>{percent(prediction.away_win)}</strong>
-                      <small>{teamName(away)} win</small>
+                      <small>{teamName(away)} chance of winning</small>
                     </div>
                   </div>
                   <div
                     className="probability-bar"
                     role="img"
-                    aria-label={`${home} win ${percent(prediction.home_win)}, tie ${percent(prediction.tie)}, ${away} win ${percent(prediction.away_win)}`}
+                    aria-label={`${teamName(home)} win ${percent(prediction.home_win)}, tie ${percent(prediction.tie)}, ${teamName(away)} win ${percent(prediction.away_win)}`}
                   >
                     <span className="bar-home" style={{ width: percent(prediction.home_win) }} />
                     <span className="bar-tie" style={{ width: percent(prediction.tie) }} />
                     <span className="bar-away" style={{ width: percent(prediction.away_win) }} />
                   </div>
-                  <p className="prediction-note">
-                    {teamLabel(home)} win-probability uncertainty:{' '}
-                    <strong>
-                      {percent(prediction.home_probability_interval[0])}–{percent(prediction.home_probability_interval[1])}
-                    </strong>{' '}
-                    <span>(approximate 95% credible interval)</span>
-                  </p>
+                  <details className="prediction-note">
+                    <summary>How certain is this estimate?</summary>
+                    <p>
+                      These are estimates, not guarantees. The model's uncertainty range for {teamName(home)}'s chance of winning is{' '}
+                      <strong>
+                        {percent(prediction.home_probability_interval[0])}–{percent(prediction.home_probability_interval[1])}
+                      </strong>{' '}
+                      (approximate 95% credible interval).
+                    </p>
+                  </details>
                 </div>
               ) : (
                 !predictionError && <p className="muted">Calculating matchup…</p>
@@ -269,12 +299,12 @@ export default function App() {
               <section className="panel schedule">
                 <div className="section-heading">
                   <div>
-                    <p className="eyebrow">THE SEASON</p>
-                    <h2>Game tracker</h2>
+                    <p className="eyebrow">The season</p>
+                    <h2>Schedule &amp; results</h2>
                   </div>
                   <label className="week-label">
                     Week
-                    <select value={week} onChange={(e) => setWeek(e.target.value)}>
+                    <select aria-label="Week" value={week} onChange={(e) => setWeek(e.target.value)}>
                       <option value="all">All weeks</option>
                       {weeks.map((w) => (
                         <option key={w} value={w}>
@@ -296,7 +326,7 @@ export default function App() {
                   </button>
                 </div>
                 {tab === 'completed' && <p className="muted">Pregame expectations use prior-day results only.</p>}
-                <div className="game-list">
+                <div className="game-list" tabIndex={0} role="region" aria-label="Games in this view">
                   {games.length === 0 ? (
                     <p className="empty">No games in this view.</p>
                   ) : (
@@ -328,15 +358,13 @@ export default function App() {
                           ) : g.prediction ? (
                             <button
                               className="game-pick"
+                              aria-label={`Explore ${teamName(g.away_team)} ${g.neutral ? 'versus' : 'at'} ${teamName(g.home_team)}`}
                               onClick={() => {
                                 setHome(g.home_team);
                                 setAway(g.away_team);
                                 setNeutral(g.neutral);
                                 setPhase(g.phase);
-                                document.querySelector('.matchup')?.scrollIntoView({
-                                  behavior: 'smooth',
-                                  block: 'start',
-                                });
+                                exploreMatchups();
                               }}
                             >
                               {teamLabel(g.prediction.home_win >= g.prediction.away_win ? g.home_team : g.away_team)}{' '}
@@ -354,18 +382,20 @@ export default function App() {
               <section className="panel rankings">
                 <div className="section-heading">
                   <div>
-                    <p className="eyebrow">TEAM RATINGS</p>
-                    <h2>Strength board</h2>
+                    <p className="eyebrow">Team ratings</p>
+                    <h2>See how they stack up</h2>
                   </div>
                 </div>
-                <p className="table-note">Current Bayesian estimates on the Elo scale. ± is one standard deviation.</p>
-                <div className="table-wrap">
+                <p className="table-note">
+                  Higher ratings mean a stronger team estimate. ± shows uncertainty (one standard deviation).
+                </p>
+                <div className="table-wrap" tabIndex={0} role="region" aria-label="Team ratings">
                   <table>
                     <thead>
                       <tr>
                         <th scope="col">Team</th>
-                        <th scope="col">Initial</th>
-                        <th scope="col">Current ± SD</th>
+                        <th scope="col">Preseason</th>
+                        <th scope="col">Current ± uncertainty</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -394,7 +424,7 @@ export default function App() {
                   Ratings follow a permanent franchise ID. Names and locations reflect the season in which each game was played; a
                   relocation or rename does not create a new rating.
                 </p>
-                <div className="table-wrap">
+                <div className="table-wrap" tabIndex={0} role="region" aria-label="Franchise history">
                   <table>
                     <thead>
                       <tr>
@@ -433,6 +463,10 @@ export default function App() {
               <summary>How these predictions work</summary>
               <div>
                 <p>
+                  Rally Row builds team ratings from past seasons and updates them as the current season progresses. For each
+                  matchup, we compare those ratings to show each team’s chance of winning.
+                </p>
+                <p>
                   Historical games determine Elo ratings, with ties scored as half a win. An offseason adjustment moves ratings
                   toward the league average. Those ratings become the prior means for a Bayesian model of team strength.
                 </p>
@@ -453,10 +487,13 @@ export default function App() {
             </details>
           </>
         )}
-        <footer>
-          Capper Zone <span>Results only. Uncertainty included.</span>
-        </footer>
       </main>
+      <footer>
+        <div className="footer-inner">
+          <strong>Rally Row</strong>
+          <span>A little insight. A lot to talk about.</span>
+        </div>
+      </footer>
     </>
   );
 }
