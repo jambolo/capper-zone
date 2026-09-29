@@ -55,7 +55,7 @@ Implementation checks and their scope are recorded in [docs/verification.md](doc
 2. **`elo-ratings` — Rust:** reads those files, replays games chronologically, and writes preseason Elo ratings and a per-game audit trail.
 3. **`elo-tune` — Rust:** searches Elo parameters against saved historical games and reports tuning and held-out evaluation; it never changes configuration or data files.
 4. **`bayes-tune` — Rust:** searches Bayesian prior uncertainty and tie smoothing against saved history with Elo settings fixed; reports tuning and held-out evaluation without changing inputs.
-5. **`web` — TypeScript:** a static React app. It immediately restores cached predictions, checks the current season in the background on page load, and rebuilds the Bayesian model when normalized game data or configuration changes. Downloads and fitting run in a Web Worker.
+5. **`web` — TypeScript:** a static React app. It immediately restores cached predictions, checks the current season in the background on page load, and rebuilds the Bayesian model when normalized game data, configuration, or published preseason ratings and history change. Downloads and fitting run in a Web Worker.
 
 ## Building and publishing
 
@@ -219,18 +219,20 @@ pnpm 12 has its own `docs` subcommand that shadows the script.
 
 The browser stores current-season games, the fitted model, and displayed predictions in `localStorage`.
 Returning visits show the saved results before any network request. A Web Worker checks for updates and
-rebuilds only when normalized current-season game data or configuration differs; changes to CSV formatting, row order,
-or scores that do not change the outcome do not trigger a rebuild. A notification remains visible during
-rebuilding, and the old results remain usable until the complete replacement is ready. Failed updates
+rebuilds when normalized current-season game data, configuration, or the published Elo seed differs;
+changes to CSV formatting, row order, or scores that do not change the outcome do not trigger a rebuild.
+A notification remains visible during rebuilding, and the old results remain usable until the complete
+replacement is ready. Failed updates
 retain the previous snapshot with a warning. The page shows when its displayed data was retrieved and
 when it was last successfully checked; these are browser timestamps, not the provider's publication time.
 
 A refresh-attempt timestamp is saved before work starts. Rapid reloads wait until 60 seconds after that
 attempt before checking again, including after an interrupted attempt. Web Locks coordinate tabs where
 supported; the cache and cooldown are rechecked after acquiring the lock. Without Web Locks, the cooldown
-still limits sequential reloads, but simultaneous tabs can race. HTTP revalidation avoids downloading an
-unchanged CSV body when the browser has a cached response. Unloading terminates the worker; unfinished
-work may need to restart after the cooldown. After the load's check completes, there is no periodic polling.
+still limits sequential reloads, but simultaneous tabs can race. HTTP revalidation can avoid downloading
+unchanged CSV, Elo seed, and history bodies when the browser has cached responses and the server supports
+conditional requests. Unloading terminates the worker; unfinished work may need to restart after the
+cooldown. After the load's check completes, there is no periodic polling.
 Unavailable or full browser storage prevents persistence across reloads; the app still runs without it.
 
 Configuration changes trigger a rebuild even when current-season games are unchanged. The worker computes
@@ -238,12 +240,20 @@ the season on each load and only reuses a model snapshot for the matching league
 requires its schedule and matching published history/Elo seed. The page may retain the previous season's
 saved display with a warning if the new season cannot be loaded.
 
-Automatic invalidation for midnight result eligibility, kickoff/status changes, updated Elo seeds with
-unchanged configuration, and model-code changes is deferred. An unchanged game snapshot can retain old
-predictions and statuses. Clear the site's saved data to force an initial build with the current inputs.
-Every rebuild validates the published history and Elo files; an unchanged cached model can display without
-fetching them. Cache, refresh-lock, and cooldown keys in `session.ts` and `snapshot.ts` currently assume
-the single NFL browser app; see [browser wiring](docs/extending.md#wire-the-browser) before adding leagues.
+Every successful refresh validates the published seed's league, season, configuration hash, and history
+hash before reusing a model. Seed and history requests use `cache: 'no-cache'` to revalidate HTTP cache
+entries. Their response bodies are hashed on each check, even when revalidation avoids transferring them.
+A SHA-256 hash of the exact seed bytes is stored as `seed_sha256` in the model snapshot. Changed seed bytes
+trigger a rebuild, including a regenerated seed with a new history hash; mismatched history and seed files
+fail the update and preserve the previous snapshot. Unchanged validated inputs skip model fitting.
+Older snapshots without a seed fingerprint still display immediately and rebuild on their first successful
+refresh to acquire one.
+
+Automatic invalidation for midnight result eligibility, kickoff/status changes, and model-code changes
+is deferred. An unchanged game snapshot can retain old predictions and statuses. Clear the site's saved
+data to force an initial build with the current inputs. Cache, refresh-lock, and cooldown keys in
+`session.ts` and `snapshot.ts` currently assume the single NFL browser app; see
+[browser wiring](docs/extending.md#wire-the-browser) before adding leagues.
 
 The app never modifies historical data or Elo files. Rebuilds use the original priors and the current set
 of results, so reloads do not double-count games. Corrected outcomes take effect on the next successful

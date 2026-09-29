@@ -66,4 +66,6 @@ it('downloads and fits through the bundled worker entry without window, localSto
   });
   expect(messages).toContainEqual({ type: 'progress', phase: 'building' });
   expect(requests.find((r) => r.url === config.source.url)?.cache).toBe('no-cache');
+  expect(requests.find((r) => r.url.endsWith('/elo-2026.json'))?.cache).toBe('no-cache');
+  expect(requests.find((r) => r.url.endsWith('/history.json'))?.cache).toBe('no-cache');
 });

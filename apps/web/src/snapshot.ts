@@ -5,7 +5,12 @@ import type { PublicState } from './service.ts';
 import type { Store } from './storage.ts';
 
 export const snapshotKey = 'game-results-prediction:nfl:model-v1';
-export type ModelSnapshot = { file: z.infer<typeof gameFileSchema>; model: Posterior; state: PublicState };
+export type ModelSnapshot = {
+  file: z.infer<typeof gameFileSchema>;
+  model: Posterior;
+  state: PublicState;
+  seed_sha256?: string | undefined;
+};
 
 const finite = z.number().finite();
 const probability = finite.min(0).max(1);
@@ -16,6 +21,10 @@ const prediction = z.object({
   home_probability_interval: z.tuple([probability, probability]),
 });
 const snapshotSchema = z.object({
+  seed_sha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   file: gameFileSchema,
   model: z.object({
     ids: z.array(z.string()).min(2),

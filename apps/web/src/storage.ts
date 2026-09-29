@@ -10,8 +10,8 @@ export async function digest(value: string | ArrayBuffer | Uint8Array): Promise<
 export class NotFoundError extends Error {}
 
 /** Published data files are static assets; a 404 means the generator has not run. */
-async function fetchBytes(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-  const response = await fetch(url, { cache: 'no-store', ...(signal ? { signal } : {}) });
+async function fetchBytes(url: string, signal?: AbortSignal, cache: RequestCache = 'no-store'): Promise<ArrayBuffer> {
+  const response = await fetch(url, { cache, ...(signal ? { signal } : {}) });
   if (response.status === 404) throw new NotFoundError(`Not published: ${url}`);
   if (!response.ok) throw new Error(`Could not read ${url}: HTTP ${response.status}`);
   return await response.arrayBuffer();
@@ -31,13 +31,26 @@ export async function readSeed(
   season: number,
   signal?: AbortSignal,
 ) {
-  const seed = seedSchema.parse(JSON.parse(decode(await fetchBytes(url, signal))));
+  return (await readSeedWithHash(url, historyUrl, config, configHash, season, signal)).seed;
+}
+
+export async function readSeedWithHash(
+  url: string,
+  historyUrl: string,
+  config: LeagueConfig,
+  configHash: string,
+  season: number,
+  signal?: AbortSignal,
+) {
+  // Revalidate cached responses so unchanged published files need not transfer their bodies again.
+  const bytes = await fetchBytes(url, signal, 'no-cache');
+  const seed = seedSchema.parse(JSON.parse(decode(bytes)));
   if (seed.league !== config.id || seed.target_season !== season || seed.through_season !== season - 1)
     throw new Error('Elo seed is for the wrong league or season; run the two Rust programs');
   if (seed.config_sha256 !== configHash) throw new Error('Configuration changed since Elo was calculated; rerun elo-ratings');
-  if ((await digest(await fetchBytes(historyUrl, signal))) !== seed.history_sha256)
+  if ((await digest(await fetchBytes(historyUrl, signal, 'no-cache'))) !== seed.history_sha256)
     throw new Error('History changed since Elo was calculated; rerun elo-ratings');
-  return seed;
+  return { seed, hash: await digest(bytes) };
 }
 
 /** Storage stays on the page because workers cannot access localStorage. The same

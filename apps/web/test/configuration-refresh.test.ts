@@ -179,7 +179,8 @@ it.each(['Bayesian settings', 'source and metadata'])(
     await f.settle();
     expect(f.createWorker).toHaveBeenCalledTimes(2);
     expect(f.messages.filter((message) => message.type === 'progress')).toEqual([{ type: 'progress', phase: 'checking' }]);
-    expect(f.fetcher.mock.calls.some(([url]) => url === f.seedUrl)).toBe(false);
+    expect(f.fetcher).toHaveBeenCalledWith(f.seedUrl, expect.objectContaining({ cache: 'no-cache' }));
+    expect(f.fetcher).toHaveBeenCalledWith('https://test/data/nfl/history.json', expect.objectContaining({ cache: 'no-cache' }));
     expect(readSnapshot(f.store)?.model).toEqual(next.model);
     expect(f.changes.at(-1)?.state).toMatchObject({ ...next.state, checked_at: new Date().toISOString() });
   },

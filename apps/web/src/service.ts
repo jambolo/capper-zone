@@ -3,7 +3,7 @@ import { startTimeUtc } from './time.ts';
 import { gameSchema, type EloSeed, type Game, type GameFile, type LeagueConfig } from './contracts.ts';
 import { fitPosterior, predict, teamEstimates, type Posterior, type Prediction } from './model.ts';
 import { download, parseSource, usableResults } from './provider.ts';
-import { browserStore, readCache, readSeed, writeCache, type Store } from './storage.ts';
+import { browserStore, readCache, readSeedWithHash, writeCache, type Store } from './storage.ts';
 import { readSnapshot, writeSnapshot, type ModelSnapshot } from './snapshot.ts';
 
 export type RefreshPhase = 'checking' | 'building' | 'rebuilding';
@@ -97,7 +97,7 @@ export class PredictionService {
     const cacheKey = `game-results-prediction:${this.config.id}:current-${this.season}`;
     const now = (this.options.now ?? (() => new Date()))();
     const saved = readSnapshot(store);
-    // Time and model-code invalidation are deferred; configuration is checked before reusing predictions.
+    // Time and model-code invalidation are deferred; published inputs are checked before reusing predictions.
     const snapshot = saved?.file.league === this.config.id && saved.file.from_season === this.season ? saved : null;
     if (snapshot) {
       this.model = snapshot.model;
@@ -135,21 +135,6 @@ export class PredictionService {
           teams: this.config.teams,
           games,
         };
-        if (
-          snapshot &&
-          snapshot.model.seed.config_sha256 === this.options.configHash &&
-          JSON.stringify(games) === JSON.stringify(snapshot.file.games)
-        ) {
-          this.state = {
-            ...snapshot.state,
-            ...this.configurationMetadata(),
-            cached: false,
-            warning: null,
-            checked_at: now.toISOString(),
-          };
-          writeSnapshot(store, { ...snapshot, state: this.state });
-          return;
-        }
         if (!snapshot) writeCache(store, cacheKey, file);
         if (cacheProblem) this.state.warning = `${cacheProblem}Replaced it with a valid download.`;
       } catch (e) {
@@ -159,11 +144,14 @@ export class PredictionService {
         this.state.cached = true;
         this.state.warning = `Refresh failed. Using cached data from ${cache.fetched_at}. ${message(e)}`;
       }
-      this.options.onProgress?.(snapshot ? 'rebuilding' : 'building');
-      this.state.refreshed_at = file.fetched_at;
-      this.state.checked_at = this.state.cached && !snapshot ? null : now.toISOString();
+      const unchanged =
+        snapshot !== null &&
+        snapshot.model.seed.config_sha256 === this.options.configHash &&
+        JSON.stringify(file.games) === JSON.stringify(snapshot.file.games);
+      if (!unchanged) this.options.onProgress?.(snapshot ? 'rebuilding' : 'building');
+      let published: Awaited<ReturnType<typeof readSeedWithHash>>;
       try {
-        this.seed = await readSeed(
+        published = await readSeedWithHash(
           `${dir}/elo-${this.season}.json`,
           `${dir}/history.json`,
           this.config,
@@ -176,6 +164,21 @@ export class PredictionService {
           { cause: e },
         );
       }
+      if (unchanged && snapshot.seed_sha256 === published.hash) {
+        this.state = {
+          ...snapshot.state,
+          ...this.configurationMetadata(),
+          cached: false,
+          warning: null,
+          checked_at: now.toISOString(),
+        };
+        writeSnapshot(store, { ...snapshot, state: this.state });
+        return;
+      }
+      if (unchanged) this.options.onProgress?.('rebuilding');
+      this.seed = published.seed;
+      this.state.refreshed_at = file.fetched_at;
+      this.state.checked_at = this.state.cached && !snapshot ? null : now.toISOString();
       const results = usableResults(file.games, this.config, now),
         completed = new Set(results.map((g) => g.id));
       this.model = fitPosterior(this.seed, results, this.config);
@@ -210,7 +213,12 @@ export class PredictionService {
       this.state = { ...this.state, ...this.configurationMetadata(), status: 'ready' };
       // Commit the source and fitted output only after the complete build succeeds.
       if (snapshot) this.state.cached = false;
-      const builtSnapshot: ModelSnapshot = { file, model: this.model, state: { ...this.state, warning: null } };
+      const builtSnapshot: ModelSnapshot = {
+        file,
+        model: this.model,
+        state: { ...this.state, warning: null },
+        seed_sha256: published.hash,
+      };
       writeSnapshot(store, builtSnapshot);
       writeCache(store, cacheKey, file);
     } catch (e) {

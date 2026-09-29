@@ -19,10 +19,10 @@ function publish(files: Record<string, string> = {}) {
     [`${dataBase}/nfl/elo-2026.json`]: JSON.stringify(seed()),
     ...files,
   };
-  const requests: { url: string; method: string }[] = [];
+  const requests: { url: string; method: string; cache: RequestCache | undefined }[] = [];
   vi.stubGlobal('fetch', (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
-    requests.push({ url, method: init?.method ?? 'GET' });
+    requests.push({ url, method: init?.method ?? 'GET', cache: init?.cache });
     const body = published[url];
     return Promise.resolve(
       body === undefined ? new Response('missing', { status: 404 }) : new Response(new TextEncoder().encode(body), { status: 200 }),
@@ -97,7 +97,7 @@ it('keeps an obsolete cache until a successful refresh replaces it with the curr
   expect(JSON.parse(store.getItem(cacheKey)!).schema_version).toBe(2);
 });
 
-it('restores the fitted model and skips fitting and seed downloads for unchanged normalized data', async () => {
+it('revalidates published inputs and skips fitting for unchanged normalized data', async () => {
   const { requests } = publish();
   const store = memoryStore();
   const first = service(store, async () => csv);
@@ -118,7 +118,10 @@ it('restores the fitted model and skips fitting and seed downloads for unchanged
   });
   await second.initialize();
   expect(fitted).not.toHaveBeenCalled();
-  expect(requests).toEqual([]);
+  expect(requests).toEqual([
+    { url: `${dataBase}/nfl/elo-2026.json`, method: 'GET', cache: 'no-cache' },
+    { url: `${dataBase}/nfl/history.json`, method: 'GET', cache: 'no-cache' },
+  ]);
   expect(progress.mock.calls).toEqual([['checking']]);
   expect(second.predict('SEA', 'SF', true, 'regular')).toEqual(first.predict('SEA', 'SF', true, 'regular'));
   expect(second.getState()).toMatchObject({
@@ -127,6 +130,115 @@ it('restores the fitted model and skips fitting and seed downloads for unchanged
     refreshed_at: now().toISOString(),
     checked_at: '2026-09-19T19:00:00.000Z',
   });
+});
+
+it.each(['seed only', 'history and seed'])('rebuilds unchanged games after a published update: %s', async (change) => {
+  const { published } = publish();
+  const store = memoryStore();
+  const first = service(store, async () => csv);
+  await first.initialize();
+  const updated = seed();
+  if (change === 'seed only') {
+    updated.ratings.find((t) => t.team === 'SEA')!.elo += 150;
+    updated.ratings.find((t) => t.team === 'SF')!.elo -= 150;
+  } else {
+    const history = `${historyBytes} corrected`;
+    published[`${dataBase}/nfl/history.json`] = history;
+    updated.history_sha256 = await digest(history);
+    updated.completed_games += 1;
+  }
+  const seedBytes = JSON.stringify(updated);
+  published[`${dataBase}/nfl/elo-2026.json`] = seedBytes;
+  const fitted = vi.spyOn(model, 'fitPosterior');
+  const second = service(store, async () => csv);
+  await second.initialize();
+  expect(fitted).toHaveBeenCalled();
+  expect(second.getState()).toMatchObject({ status: 'ready', cached: false, warning: null });
+  expect(second.getModel()?.seed).toEqual(updated);
+  if (change === 'seed only') {
+    expect(second.getState().teams.find((t) => t.id === 'SEA')!.initial_elo).toBe(config.elo.initial + 150);
+    expect(second.predict('SEA', 'SF', true, 'regular').home_win).toBeGreaterThan(
+      first.predict('SEA', 'SF', true, 'regular').home_win,
+    );
+    for (const index of [0, 1]) {
+      expect(second.getState().games[index].prediction!.home_win).toBeGreaterThan(
+        first.getState().games[index].prediction!.home_win,
+      );
+    }
+  }
+  expect(second.getState().historical_games).toBe(updated.completed_games);
+  expect(JSON.parse(store.getItem(snapshotKey)!).seed_sha256).toBe(await digest(seedBytes));
+});
+
+it.each([
+  ['history mismatch', 'History changed since Elo was calculated'],
+  ['wrong league', 'wrong league or season'],
+  ['wrong season', 'wrong league or season'],
+  ['wrong configuration', 'Configuration changed since Elo was calculated'],
+  ['failed fit', 'Elo seed does not match the configured league and teams'],
+])('retains the snapshot when unchanged games accompany %s', async (failure, warning) => {
+  const { published } = publish();
+  const store = memoryStore();
+  const first = service(store, async () => csv);
+  await first.initialize();
+  const saved = store.getItem(snapshotKey);
+  const cachedGames = store.getItem(cacheKey);
+  const updated = seed();
+  if (failure === 'history mismatch') published[`${dataBase}/nfl/history.json`] = 'different history';
+  else if (failure === 'wrong league') updated.league = 'other';
+  else if (failure === 'wrong season') updated.target_season -= 1;
+  else if (failure === 'wrong configuration') updated.config_sha256 = '0'.repeat(64);
+  else updated.ratings.pop();
+  published[`${dataBase}/nfl/elo-2026.json`] = JSON.stringify(updated);
+  const second = new PredictionService({
+    config,
+    configHash,
+    dataBase,
+    season: 2026,
+    store,
+    now: () => new Date('2026-09-19T19:00:00Z'),
+    fetchSource: async () => csv,
+  });
+  await second.initialize();
+  expect(second.getState()).toEqual({ ...first.getState(), cached: true, warning: expect.stringContaining(warning) });
+  expect(second.getModel()).toEqual(first.getModel());
+  expect(store.getItem(snapshotKey)).toBe(saved);
+  expect(store.getItem(cacheKey)).toBe(cachedGames);
+});
+
+it.each(['elo-2026.json', 'history.json'])('retains the snapshot if the freshness check cannot fetch %s', async (file) => {
+  const { published } = publish();
+  const store = memoryStore();
+  const first = service(store, async () => csv);
+  await first.initialize();
+  const saved = store.getItem(snapshotKey);
+  delete published[`${dataBase}/nfl/${file}`];
+  const second = service(store, async () => csv);
+  await second.initialize();
+  expect(second.getState()).toEqual({
+    ...first.getState(),
+    cached: true,
+    warning: expect.stringContaining(`Not published: ${dataBase}/nfl/${file}`),
+  });
+  expect(second.getModel()).toEqual(first.getModel());
+  expect(store.getItem(snapshotKey)).toBe(saved);
+});
+
+it('rebuilds a legacy snapshot once to record its published seed fingerprint', async () => {
+  const { published } = publish();
+  const store = memoryStore();
+  await service(store, async () => csv).initialize();
+  const legacy = JSON.parse(store.getItem(snapshotKey)!);
+  delete legacy.seed_sha256;
+  store.setItem(snapshotKey, JSON.stringify(legacy));
+  expect(readSnapshot(store)).not.toBeNull();
+  const fitted = vi.spyOn(model, 'fitPosterior');
+  await service(store, async () => csv).initialize();
+  expect(fitted).toHaveBeenCalled();
+  expect(JSON.parse(store.getItem(snapshotKey)!).seed_sha256).toBe(await digest(published[`${dataBase}/nfl/elo-2026.json`]));
+  fitted.mockClear();
+  await service(store, async () => csv).initialize();
+  expect(fitted).not.toHaveBeenCalled();
 });
 
 it.each([true, false])('refreshes a changed baseline with unchanged games; updated seed available: %s', async (available) => {
