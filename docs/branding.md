@@ -116,10 +116,8 @@ rosters, injuries, score margins, and betting markets are not used.
 ## Review status
 
 The [visual concept](branding/rally-row-concept-v1.png) is a raster exploration,
-not a final vector logo or implemented interface. The image-generation prompts are saved in
-[rally-row-image-prompt.md](branding/rally-row-image-prompt.md).
-The concept image and its initial prompts retain the earlier tagline,
-"Get a read. Make your call." Their display lettering predates the selected
+not a final vector logo or implemented interface. The concept image retains the earlier tagline,
+"Get a read. Make your call." Its display lettering predates the selected
 interface headline font. The Messaging and Typography guidance above governs
 current use.
 
@@ -127,6 +125,8 @@ The [production artwork package](branding/production/README.md) provides outline
 SVG logos, PNG exports, and favicon files using the selected tagline and primary
 navy color treatment. The web app uses the production logo and browser icons,
 approved messaging and palette, and locally hosted Barlow Condensed and Inter fonts.
+The [production prompt log](branding/production/source/generation-prompts.md) records the refinement
+and color-correction references used before the final vector artwork was built.
 
 The [September 28 availability check](branding/rally-row-availability-2026-09-28.md)
 found rallyrow.com and the exact handles on Instagram, X, TikTok, and YouTube

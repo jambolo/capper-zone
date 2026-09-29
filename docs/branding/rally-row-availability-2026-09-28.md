@@ -2,6 +2,8 @@
 
 Checked September 28, 2026, approximately 1:25 p.m. Pacific / 20:25 UTC.
 
+This is a dated record, not a live availability report. The statuses below apply to that check.
+
 ## Result
 
 The exact .com domain and core social handles are already taken. Alternate domain

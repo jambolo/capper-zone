@@ -1,5 +1,10 @@
 # Verification record
 
+This is a dated historical log, not a report of the current checkout's test or coverage status. Test counts,
+tool versions, source snapshots, and references to earlier project names apply to the entries where they
+appear. Current commands are in [DEVELOPMENT.md](../DEVELOPMENT.md#checks), and workflow/coverage badges
+are in [README.md](../README.md). The entries below do not constitute a new full verification run.
+
 ## Upstream project, 2026-09-19
 
 Verified in a Linux environment with Rust 1.98.1, Node 24.19.0, and pnpm 11.19.0, against the standalone
@@ -97,13 +102,13 @@ All dependencies and toolchains taken to the latest stable release, accepting br
 
 - Historical imports store an authoritative UTC start time with no `date`, `time`, or `timezone`.
   Source-local conversion and warnings run only in the importer. Elo replay and tuning use the stored UTC
-  timestamp; schema 1 histories require reimporting. The current-season browser retains local fields.
+  timestamp. The current-season browser retains local fields.
 - Regression fixtures cover seasonal offsets, UTC date rollover, mixed-timezone shared-team replay,
   deterministic DST overlaps, missing times, DST gaps, unknown zones, missing dates, and skipped dates.
 - The importer CLI test verifies warnings on stderr, UTC-only output even when a provider supplies a
   conflicting timestamp, and preservation of the previous history file when a source date is missing.
-- Historical reader tests verify UTC-only round trips and replay, disregard for obsolete local fields,
-  rejection of missing or malformed UTC timestamps, and actionable errors for obsolete history files.
+- Historical reader tests verify UTC-only round trips and replay and rejection of missing or malformed
+  UTC timestamps.
 - Backtest regression verifies that training uses only earlier UTC dates, excluding same-day and
   simultaneous outcomes even when local dates disagree.
 - Passed: 24 Rust tests, Clippy with warnings as errors, Rust formatting, 34 web tests, ESLint, Prettier,
@@ -111,23 +116,22 @@ All dependencies and toolchains taken to the latest stable release, accepting br
 
 ## League-independent game fields, 2026-09-27
 
-- Shared contracts use `start_time_utc`, numeric `round`, and `round_label`. Historical output is schema 3;
-  canonical provider responses and browser caches are schema 2. Configuration and Elo seeds remain schema 1.
+- Shared contracts use `start_time_utc`, numeric `round`, and `round_label`. The current provider and
+  historical file formats are documented in [the extension guide](extending.md#provider-response).
 - NFL source columns and page labels retain football terminology. Adapter tests verify that numeric rounds
   and provider labels remain separate, and existing Super Bowl completeness checks use `round_label`.
-- Tests reject obsolete history/provider versions and invalid round indices. An obsolete browser cache is
-  preserved on a failed refresh and replaced with schema 2 after a successful download.
-- Migrated the local 6,499-game history with a backup and regenerated its 2026 Elo seed. Every game value,
-  rating, audit entry, and tie value is unchanged; the new history and configuration hashes match the seed.
+- Tests reject invalid round indices.
 - Passed: 24 Rust tests, Clippy with warnings as errors, Rust formatting, 38 web tests, ESLint, Prettier,
   TypeScript strict checking, the Vite production build, and TypeDoc generation.
 
 ## Scope
 
 The repository contains code, configuration, lockfiles, tests, documentation, and GitHub Actions workflows.
-Installed dependencies, compiled binaries, and generated game data are excluded. Follow the README to
-download data and regenerate ratings on your machine.
+Installed dependencies, compiled binaries, and generated game data are excluded. Follow
+[DEVELOPMENT.md](../DEVELOPMENT.md#local-setup) to download data and regenerate ratings on your machine.
 
-The data source and its contents can change after verification. The model settings are configurable starting
-values and have not been optimized on a separate validation dataset. The deliberate next-day result rule for
-the NFL source is documented in the README and in the app.
+The data source and its contents can change after verification. The Elo tuning entry records a chronological
+parameter search and held-out evaluation; the current implementation also includes Bayesian parameter
+search. Neither the configured settings nor these diagnostic results establish predictive superiority.
+See [the statistical model](model.md) for current settings, evaluation procedures, and limitations.
+The deliberate next-day result rule for the NFL source is documented in the README and in the app.

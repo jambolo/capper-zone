@@ -81,14 +81,16 @@ outputs showed edge artifacts, so final SVG and PNG assets use the clean vector
 reconstruction. The generation prompts and color correction are recorded in
 [the prompt log](source/generation-prompts.md).
 
-On Windows, rebuild the text outlines with PowerShell:
+Run the following commands from `docs/branding/production/`. On Windows, rebuild the text outlines
+with PowerShell:
 
 ```powershell
 ./source/outline-type.ps1
 ./source/outline-type.ps1 -FontFile Anton-Regular.ttf -Text 'RALLY ROW' -Output wordmark.json
 ```
 
-With Node.js and the `sharp` package available, rebuild the exports:
+With Node.js and the `sharp` package resolvable by `source/build-assets.cjs`, rebuild the exports.
+`sharp` is not a declared dependency of the web app:
 
 ```powershell
 node ./source/build-assets.cjs
