@@ -181,7 +181,7 @@ Generated history and Elo outputs are readable, formatted JSON under `data/<leag
 | `history.json` | Rust importer | Normalized games and reported outcomes through the season before the target season, plus the effective-season franchise identity registry |
 | `elo-<target-season>.json` | Rust Elo calculator | Preseason ratings for the target season, model settings, source/configuration hashes, tie parameter, per-game Elo audit |
 
-By default, the season is selected from the current UTC date using the configured rollover month (March
+By default, the season is selected from the current UTC date using the configured rollover month (April
 for the included NFL configuration). Use `--through-season` with the importer, `--target-season` with
 the Elo calculator, and `--season` with the Node backtest to override their defaults.
 

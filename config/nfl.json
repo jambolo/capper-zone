@@ -3,7 +3,7 @@
   "id": "nfl",
   "name": "NFL",
   "history_start": 2002,
-  "season_rollover_month": 3,
+  "season_rollover_month": 4,
   "source": {
     "kind": "nflverse-csv",
     "url": "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv"
