@@ -54,11 +54,10 @@ export class PredictionService {
     this.config = options.config;
     this.season = options.season;
     this.state = {
-      team_history: this.config.teams,
+      ...this.configurationMetadata(),
       status: 'loading',
       error: null,
       warning: null,
-      league: this.config.name,
       season: this.season,
       refreshed_at: null,
       checked_at: null,
@@ -66,10 +65,16 @@ export class PredictionService {
       training_games: 0,
       historical_games: 0,
       held_results: 0,
-      source: this.config.source.url,
-      history_start: this.config.history_start,
       teams: [],
       games: [],
+    };
+  }
+  private configurationMetadata() {
+    return {
+      league: this.config.name,
+      source: this.config.source.url,
+      team_history: this.config.teams,
+      history_start: this.config.history_start,
       result_policy:
         this.config.source.kind === 'nflverse-csv'
           ? 'Results from today are held until the next calendar day in Eastern Time because the source has no live/final flag.'
@@ -135,7 +140,13 @@ export class PredictionService {
           snapshot.model.seed.config_sha256 === this.options.configHash &&
           JSON.stringify(games) === JSON.stringify(snapshot.file.games)
         ) {
-          this.state = { ...snapshot.state, cached: false, warning: null, checked_at: now.toISOString() };
+          this.state = {
+            ...snapshot.state,
+            ...this.configurationMetadata(),
+            cached: false,
+            warning: null,
+            checked_at: now.toISOString(),
+          };
           writeSnapshot(store, { ...snapshot, state: this.state });
           return;
         }
@@ -196,7 +207,7 @@ export class PredictionService {
           prediction: predict(model, g.home_team, g.away_team, g.neutral, g.phase),
         };
       });
-      this.state.status = 'ready';
+      this.state = { ...this.state, ...this.configurationMetadata(), status: 'ready' };
       // Commit the source and fitted output only after the complete build succeeds.
       if (snapshot) this.state.cached = false;
       const builtSnapshot: ModelSnapshot = { file, model: this.model, state: { ...this.state, warning: null } };

@@ -186,6 +186,82 @@ it.each([true, false])('refreshes a changed baseline with unchanged games; updat
   }
 });
 
+it.each([true, false])('updates configuration metadata only after a successful rebuild; seed available: %s', async (available) => {
+  const { published } = publish();
+  const store = memoryStore();
+  const first = service(store, async () => csv);
+  await first.initialize();
+  const snapshot = readSnapshot(store)!;
+  const saved = store.getItem(snapshotKey);
+  const updatedConfig = structuredClone(config);
+  updatedConfig.name = 'Updated NFL';
+  updatedConfig.history_start += 1;
+  updatedConfig.source = { kind: 'canonical-json', url: 'https://updated.test/games.json' };
+  const team = updatedConfig.teams.find((t) => t.id === 'SEA')!;
+  team.name = 'Updated Seahawks';
+  team.eras.at(-1)!.name = team.name;
+  const updatedHash = await digest(JSON.stringify(updatedConfig));
+  const updatedSeed = seed();
+  updatedSeed.config_sha256 = updatedHash;
+  const seedUrl = `${dataBase}/nfl/elo-2026.json`;
+  if (available) published[seedUrl] = JSON.stringify(updatedSeed);
+  else delete published[seedUrl];
+  const second = new PredictionService({
+    config: updatedConfig,
+    configHash: updatedHash,
+    dataBase,
+    season: 2026,
+    store,
+    now: () => new Date('2026-09-19T19:00:00Z'),
+    fetchSource: async () => JSON.stringify({ schema_version: 2, league: 'nfl', games: snapshot.file.games }),
+    onProgress: () => expect(second.getState()).toEqual({ ...snapshot.state, cached: true }),
+  });
+  await second.initialize();
+  if (!available) {
+    expect(second.getState()).toEqual({
+      ...snapshot.state,
+      cached: true,
+      warning: expect.stringContaining('initial ratings could not be loaded'),
+    });
+    expect(second.getModel()).toEqual(snapshot.model);
+    expect(store.getItem(snapshotKey)).toBe(saved);
+    return;
+  }
+  const metadata = {
+    league: updatedConfig.name,
+    source: updatedConfig.source.url,
+    team_history: updatedConfig.teams,
+    history_start: updatedConfig.history_start,
+    result_policy: 'The provider supplies completed game outcomes.',
+  };
+  expect(second.getState()).toMatchObject({ ...metadata, status: 'ready', cached: false, warning: null });
+  expect(second.getModel()?.config).toEqual(updatedConfig);
+  expect(readSnapshot(store)?.state).toMatchObject(metadata);
+});
+
+it('refreshes stale configuration metadata when reusing an unchanged model', async () => {
+  publish();
+  const store = memoryStore();
+  const first = service(store, async () => csv);
+  await first.initialize();
+  const snapshot = readSnapshot(store)!;
+  snapshot.state = {
+    ...snapshot.state,
+    league: 'Old NFL',
+    source: 'https://previous.test/games.csv',
+    team_history: snapshot.state.team_history.slice(1),
+    history_start: 1999,
+    result_policy: 'Old result policy',
+  };
+  store.setItem(snapshotKey, JSON.stringify(snapshot));
+  const fitted = vi.spyOn(model, 'fitPosterior');
+  const second = service(store, async () => csv);
+  await second.initialize();
+  expect(fitted).not.toHaveBeenCalled();
+  expect(second.getState()).toEqual(first.getState());
+  expect(readSnapshot(store)?.state).toEqual(first.getState());
+});
+
 it('announces changed data while the old predictions are still available, then commits the new snapshot', async () => {
   publish();
   const store = memoryStore();
