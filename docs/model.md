@@ -27,7 +27,7 @@ Season-based identity eras preserve each game's historical name and home market.
 
 A relocation, rename, change of ownership, or roster change does not reset a rating or create an extra
 team. Venue changes are separate: a game's neutral-site designation determines whether home advantage
-applies. See [Franchise identity and historical consistency](team-history.md) for the identity ranges.
+applies. See [Franchise identity and historical consistency](team-history.md) for additional identity rules and historical sources.
 
 ## Historical Elo
 

@@ -94,7 +94,7 @@ The importer writes `data/<league>/history.json` with these fields:
 | `source_url` | Configured provider URL |
 | `from_season` | First included season |
 | `through_season` | Last included season, inclusive |
-| `teams` | Franchise identity registry described in [team-history.md](team-history.md#how-it-is-stored) |
+| `teams` | Franchise identity registry described in [Configuration](#configuration) |
 | `games` | Array of normalized historical game records |
 
 Each game has the following structure. This example is illustrative, not actual game data:

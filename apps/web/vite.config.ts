@@ -62,7 +62,7 @@ function projectData(): Plugin {
 
 // Project Pages sites are served from a subdirectory, so asset URLs must be relative to it.
 export default defineConfig({
-  base: process.env.VITE_BASE ?? '/capper-zone/',
+  base: process.env.VITE_BASE ?? '/rally-row/',
   plugins: [react(), projectData()],
   test: { environment: 'node', include: ['test/**/*.test.ts'] },
 });

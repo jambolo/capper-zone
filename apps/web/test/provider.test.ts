@@ -41,9 +41,11 @@ it('holds same-day CSV scores and respects Eastern midnight', () => {
   expect(usableResults([g], config, new Date('2026-09-02T04:01:00Z'))).toHaveLength(1);
   expect(usableResults([game({ result: null })], config, new Date('2026-09-03T00:00:00Z'))).toHaveLength(0);
 });
-it('keeps January and February in the previous NFL season', () => {
+it('keeps January through March in the previous NFL season', () => {
   expect(currentSeason(config, new Date('2027-02-28T23:59:59Z'))).toBe(2026);
-  expect(currentSeason(config, new Date('2027-03-01T00:00:00Z'))).toBe(2027);
+  expect(currentSeason(config, new Date('2027-03-01T00:00:00Z'))).toBe(2026);
+  expect(currentSeason(config, new Date('2027-03-31T23:59:59Z'))).toBe(2026);
+  expect(currentSeason(config, new Date('2027-04-01T00:00:00Z'))).toBe(2027);
 });
 it('accepts another league through the canonical JSON adapter', () => {
   const other = {

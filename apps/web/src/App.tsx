@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { message } from './service.ts';
 import { predict, type Prediction } from './model.ts';
 import { startSession, type SessionView } from './session.ts';
+import { APP_VERSION } from './version.ts';
 
 const base = import.meta.env.BASE_URL;
 const percent = (p: number) => `${(100 * p).toFixed(1)}%`;
@@ -490,7 +491,7 @@ export default function App() {
       </main>
       <footer>
         <div className="footer-inner">
-          <strong>Rally Row</strong>
+          <strong>Rally Row · v{APP_VERSION}</strong>
           <span>A little insight. A lot to talk about.</span>
         </div>
       </footer>

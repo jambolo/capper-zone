@@ -62,12 +62,12 @@ jobs:
       - name: Extract versions
         id: get_versions
         run: |
-          # The CLIs share [workspace.package] version; the web app versions independently.
-          # Tags are prefixed so equal version numbers don't collide.
-          CLI_TAG="cli-v$(cargo get workspace.package.version)"
+          # The workspace version covers the whole project; the web app versions independently.
+          # Distinct tag names allow equal project and app version numbers.
+          PROJECT_TAG="v$(cargo get workspace.package.version)"
           WEB_TAG="web-v$(node -p "require('./apps/web/package.json').version")"
-          echo "tags=$CLI_TAG $WEB_TAG" >> "$GITHUB_OUTPUT"
-          echo "Tags: $CLI_TAG $WEB_TAG"
+          echo "tags=$PROJECT_TAG $WEB_TAG" >> "$GITHUB_OUTPUT"
+          echo "Tags: $PROJECT_TAG $WEB_TAG"
       - name: Create and push missing tags
         id: tag
         run: |

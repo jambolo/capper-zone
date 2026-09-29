@@ -72,6 +72,48 @@ it('shows the cached model before starting a worker and keeps it visible during 
   stop();
 });
 
+it.each([undefined, '0.0.0', '999.0.0', 42])(
+  'does not expose a snapshot with app version %s on restoration or worker failure',
+  async (version) => {
+    const f = await setup();
+    const saved = JSON.stringify({ ...f.snapshot, app_version: version });
+    f.store.setItem(snapshotKey, saved);
+    const stop = f.startSession(f.options);
+    expect(f.changes.some((view) => view.model !== null)).toBe(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.changes.at(-1)).toMatchObject({ model: null, state: null, phase: 'checking' });
+    f.worker.send({ type: 'error', error: 'offline' });
+    expect(f.changes.at(-1)).toMatchObject({ model: null, state: null, phase: 'idle', error: 'offline' });
+    expect(f.store.getItem(snapshotKey)).toBe(saved);
+    stop();
+  },
+);
+
+it.each([true, false])(
+  'checks the version of a snapshot published while waiting for the lock; compatible: %s',
+  async (compatible) => {
+    const f = await setup();
+    f.store.removeItem(snapshotKey);
+    const gate = Promise.withResolvers<void>();
+    const locks = {
+      request: vi.fn(async (_name: string, _options: LockOptions, callback: () => Promise<void>) => {
+        await gate.promise;
+        await callback();
+      }),
+    } as unknown as Pick<LockManager, 'request'>;
+    const stop = f.startSession({ ...f.options, locks });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.createWorker).not.toHaveBeenCalled();
+    f.store.setItem(snapshotKey, JSON.stringify({ ...f.snapshot, ...(compatible ? {} : { app_version: '0.0.0' }) }));
+    gate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.createWorker).toHaveBeenCalledOnce();
+    expect(f.changes.at(-1)?.model).toEqual(compatible ? f.snapshot.model : null);
+    f.worker.send({ type: 'error', error: 'offline' });
+    stop();
+  },
+);
+
 it('defers work across a reload that interrupted the previous worker, then retries at the deadline', async () => {
   const { startSession, options, worker, createWorker, changes, cooldownMs } = await setup();
   const stop = startSession(options);
