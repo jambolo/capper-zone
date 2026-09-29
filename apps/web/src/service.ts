@@ -1,9 +1,9 @@
-import { DateTime } from 'luxon';
+import { adapterFor, type SourceAdapter } from './adapters/index.ts';
 import { startTimeUtc } from './time.ts';
 import { gameSchema, type EloSeed, type Game, type GameFile, type LeagueConfig } from './contracts.ts';
 import { fitPosterior, predict, teamEstimates, type Posterior, type Prediction } from './model.ts';
 import { download, parseSource, usableResults } from './provider.ts';
-import { browserStore, readCache, readSeedWithHash, writeCache, type Store } from './storage.ts';
+import { currentCacheKey, readCache, readSeedWithHash, writeCache, type Store } from './storage.ts';
 import { readSnapshot, writeSnapshot, type ModelSnapshot } from './snapshot.ts';
 import { APP_VERSION } from './version.ts';
 
@@ -28,7 +28,10 @@ export type PublicState = {
   team_history: LeagueConfig['teams'];
   source: string;
   result_policy: string;
+  result_policy_summary: string;
   history_start: number;
+  display: LeagueConfig['display'];
+  ties_allowed_in: LeagueConfig['ties_allowed_in'];
   teams: ReturnType<typeof teamEstimates>;
   games: GameView[];
 };
@@ -36,6 +39,7 @@ export type PublicState = {
 export class PredictionService {
   readonly config: LeagueConfig;
   readonly season: number;
+  private readonly adapter: SourceAdapter;
   private model: Posterior | null = null;
   private seed: EloSeed | null = null;
   private state: PublicState;
@@ -46,6 +50,7 @@ export class PredictionService {
       /** Base URL the published `data/<league>/` files are served from. */
       dataBase: string;
       season: number;
+      /** Snapshot and current-season cache store; omitted means no persistence. */
       store?: Store | null;
       fetchSource?: typeof download;
       now?: () => Date;
@@ -54,6 +59,7 @@ export class PredictionService {
   ) {
     this.config = options.config;
     this.season = options.season;
+    this.adapter = adapterFor(this.config);
     this.state = {
       ...this.configurationMetadata(),
       status: 'loading',
@@ -73,13 +79,14 @@ export class PredictionService {
   private configurationMetadata() {
     return {
       league: this.config.name,
-      source: this.config.source.url,
+      // The season-resolved download link; for single-document sources this is the configured URL.
+      source: this.adapter.seasonUrls(this.config, this.season)[0],
       team_history: this.config.teams,
       history_start: this.config.history_start,
-      result_policy:
-        this.config.source.kind === 'nflverse-csv'
-          ? 'Results from today are held until the next calendar day in Eastern Time because the source has no live/final flag.'
-          : 'The provider supplies completed game outcomes.',
+      result_policy: this.adapter.resultPolicy.detail,
+      result_policy_summary: this.adapter.resultPolicy.summary,
+      display: this.config.display,
+      ties_allowed_in: this.config.ties_allowed_in,
     };
   }
   getState(): PublicState {
@@ -94,10 +101,10 @@ export class PredictionService {
   }
   async initialize(): Promise<void> {
     const dir = `${this.options.dataBase.replace(/\/$/, '')}/${this.config.id}`;
-    const store = this.options.store === undefined ? browserStore() : this.options.store;
-    const cacheKey = `game-results-prediction:${this.config.id}:current-${this.season}`;
+    const store = this.options.store ?? null;
+    const cacheKey = currentCacheKey(this.config.id, this.season);
     const now = (this.options.now ?? (() => new Date()))();
-    const saved = readSnapshot(store);
+    const saved = readSnapshot(store, this.config.id);
     const snapshot = saved?.file.league === this.config.id && saved.file.from_season === this.season ? saved : null;
     if (snapshot) {
       this.model = snapshot.model;
@@ -115,8 +122,10 @@ export class PredictionService {
       }
       let file: GameFile;
       try {
-        const text = await (this.options.fetchSource ?? download)(this.config.source.url);
-        const games = gameSchema.array().parse(parseSource(text, this.config).filter((g) => g.season === this.season));
+        const fetchSource = this.options.fetchSource ?? download;
+        const texts: string[] = [];
+        for (const url of this.adapter.seasonUrls(this.config, this.season)) texts.push(await fetchSource(url));
+        const games = gameSchema.array().parse(parseSource(texts, this.config).filter((g) => g.season === this.season));
         if (!games.length) throw new Error(`The source has no games for season ${this.season} yet`);
         if (cache) {
           const incoming = new Map(games.map((g) => [g.id, g]));
@@ -188,20 +197,19 @@ export class PredictionService {
       this.state.training_games = results.length;
       this.state.historical_games = this.seed.completed_games;
       this.state.held_results = file.games.filter((g) => g.result !== null && !completed.has(g.id)).length;
-      const pregameModels = new Map<number, Posterior>();
+      const pregameModels = new Map<string, Posterior>();
       this.state.games = file.games.map((g) => {
         const startTime = Date.parse(g.start_time_utc ?? startTimeUtc(g));
         const status = completed.has(g.id) ? 'completed' : startTime <= now.getTime() ? 'awaiting_result' : 'scheduled';
         let model = this.model!;
         if (status === 'completed') {
           // Without final timestamps, exclude same-day outcomes and reuse each day's model.
-          const zone = this.config.source.kind === 'nflverse-csv' ? 'America/New_York' : 'utc';
-          const cutoff = DateTime.fromMillis(startTime, { zone }).startOf('day').toMillis();
-          let pregame = pregameModels.get(cutoff);
+          const day = this.adapter.pregameDay(g);
+          let pregame = pregameModels.get(day);
           if (!pregame) {
-            const priorResults = results.filter((r) => Date.parse(r.start_time_utc ?? startTimeUtc(r)) < cutoff);
+            const priorResults = results.filter((r) => this.adapter.pregameDay(r) < day);
             pregame = fitPosterior(this.seed!, priorResults, this.config);
-            pregameModels.set(cutoff, pregame);
+            pregameModels.set(day, pregame);
           }
           model = pregame;
         }

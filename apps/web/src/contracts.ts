@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DateTime } from 'luxon';
+import { adapterFor, isSourceKind } from './adapters/index.ts';
 import { startTimeUtc } from './time.ts';
 
 const finite = z.number().finite();
@@ -27,20 +28,62 @@ const eloSchema = z.object({
   home_advantage: finite,
   offseason_regression: finite.min(0).max(1),
 });
+const nonEmpty = z.string().min(1);
+export const displaySchema = z.object({
+  start_time_label: nonEmpty,
+  round_name: nonEmpty.nullable(),
+  schedule_filter: z.object({
+    unit: z.enum(['round', 'date']),
+    label: nonEmpty,
+    all_label: nonEmpty,
+  }),
+  postseason_label: nonEmpty,
+  postseason_round_labels: z.record(nonEmpty, nonEmpty),
+  postseason_tie_note: nonEmpty,
+});
+const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+/** Day of year (1-365) in a non-leap year; null unless `value` is a valid "MM-DD". */
+export function monthDayOrdinal(value: string): number | null {
+  const m = /^(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return null;
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1]) return null;
+  return daysInMonth.slice(0, month - 1).reduce((sum, days) => sum + days, 0) + day;
+}
+const monthDay = z.string().refine((s) => monthDayOrdinal(s) !== null, 'Invalid month-day');
+const monthDayWindow = z.object({ start: monthDay, end: monthDay });
+export const windowsSchema = z.object({ season: monthDayWindow, postseason: monthDayWindow }).superRefine((w, ctx) => {
+  const ss = monthDayOrdinal(w.season.start);
+  const se = monthDayOrdinal(w.season.end);
+  const ps = monthDayOrdinal(w.postseason.start);
+  const pe = monthDayOrdinal(w.postseason.end);
+  if (ss === null || se === null || ps === null || pe === null) return;
+  if (ss === se) {
+    ctx.addIssue({ code: 'custom', message: 'Season window start and end must be different' });
+    return;
+  }
+  // Days after season.start, wrapping at the year boundary.
+  const span = (to: number) => (to + 365 - ss) % 365;
+  if (!(span(ps) <= span(pe) && span(pe) <= span(se)))
+    ctx.addIssue({ code: 'custom', message: 'Postseason window must lie within the season window' });
+});
 export const configSchema = z
   .object({
-    schema_version: z.literal(1),
+    schema_version: z.literal(2),
     id: z.string().regex(/^[a-zA-Z0-9-]+$/),
     name: z.string().min(1),
     history_start: z.number().int().min(1900).max(2200),
     season_rollover_month: z.number().int().min(1).max(12),
     source: z.object({
-      kind: z.enum(['nflverse-csv', 'canonical-json']),
+      kind: z.string().refine(isSourceKind, 'Unknown source adapter'),
       url: z.url().refine((s) => s.startsWith('https://')),
     }),
     teams: z.array(teamSchema).min(2),
     aliases: z.record(z.string(), z.string()),
     ties_allowed_in: z.array(phase),
+    display: displaySchema,
+    windows: windowsSchema,
     elo: eloSchema,
     bayesian: z.object({
       prior_sd_elo: finite.positive(),
@@ -49,6 +92,10 @@ export const configSchema = z
     }),
   })
   .superRefine((c, ctx) => {
+    if (isSourceKind(c.source.kind)) {
+      const problem = adapterFor(c).validateConfig?.(c);
+      if (problem) ctx.addIssue({ code: 'custom', message: problem });
+    }
     const ids = new Set(c.teams.map((t) => t.id));
     if (ids.size !== c.teams.length) ctx.addIssue({ code: 'custom', message: 'Duplicate team ids' });
     for (const [from, to] of Object.entries(c.aliases)) {
@@ -134,6 +181,7 @@ const order = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export function validateGames(input: unknown, config: LeagueConfig): Game[] {
   const games = z.array(gameSchema).parse(input);
+  const { strictSourceIds, sourceStartTimes } = adapterFor(config);
   const teams = new Set(config.teams.map((t) => t.id));
   const seen = new Set<string>();
   for (const g of games) {
@@ -147,10 +195,11 @@ export function validateGames(input: unknown, config: LeagueConfig): Game[] {
     ]) {
       if ((config.aliases[source] ?? source) !== id) throw new Error(`Source id does not match franchise: ${g.id}`);
       const era = teamIdentity(config, id, g.season);
-      if (config.source.kind === 'nflverse-csv' && !era.source_ids.includes(source))
+      if (strictSourceIds && !era.source_ids.includes(source))
         throw new Error(`Source abbreviation invalid for season ${g.season}: ${g.id}`);
     }
-    g.start_time_utc = startTimeUtc(g);
+    if (!sourceStartTimes) g.start_time_utc = startTimeUtc(g);
+    else if (!g.start_time_utc) throw new Error(`Missing start time for ${g.id}`);
     if (g.result === 'tie' && !config.ties_allowed_in.includes(g.phase)) throw new Error(`Tie prohibited for ${g.id}`);
   }
   return games.sort((a, b) => a.season - b.season || order(a.start_time_utc!, b.start_time_utc!) || order(a.id, b.id));

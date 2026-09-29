@@ -3,6 +3,8 @@
  */
 export {
   configSchema,
+  displaySchema,
+  windowsSchema,
   gameSchema,
   gameFileSchema,
   seedSchema,
@@ -15,6 +17,7 @@ export {
   type GameFile,
   type LeagueConfig,
 } from './contracts.ts';
+export { adapterFor, isSourceKind, type SourceAdapter } from './adapters/index.ts';
 export {
   fitPosterior,
   outcomeProbabilities,
@@ -26,8 +29,11 @@ export {
 } from './model.ts';
 export { download, parseSource, usableResults } from './provider.ts';
 export { PredictionService, message, type GameView, type PublicState } from './service.ts';
+export { indexedDbPersistence, type Persistence } from './persistence.ts';
+export { rememberedLeagueKey, removeLegacyEntries, smallStore } from './small-store.ts';
+export { postseasonLabel, scheduleKey, scheduleOptions, type ScheduleUnit } from './schedule.ts';
 export {
-  browserStore,
+  currentCacheKey,
   digest,
   memoryStore,
   readCache,

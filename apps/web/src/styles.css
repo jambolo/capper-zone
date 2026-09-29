@@ -132,6 +132,21 @@ button:hover:not(:disabled) {
   padding: 8px 14px;
   white-space: nowrap;
 }
+.league-select {
+  width: auto;
+  min-height: 28px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  color-scheme: dark;
+  font-size: inherit;
+  letter-spacing: inherit;
+}
+.league-select:focus-visible {
+  outline-color: var(--canvas);
+}
 main {
   flex: 1;
   width: 100%;

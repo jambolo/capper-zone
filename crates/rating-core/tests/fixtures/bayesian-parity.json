@@ -1,6 +1,6 @@
 {
   "config": {
-    "schema_version": 1,
+    "schema_version": 2,
     "id": "nfl",
     "name": "NFL",
     "history_start": 2002,
@@ -63,6 +63,28 @@
     "ties_allowed_in": [
       "regular"
     ],
+    "display": {
+      "start_time_label": "Kickoff",
+      "round_name": "Week",
+      "schedule_filter": {
+        "unit": "round",
+        "label": "Week",
+        "all_label": "All weeks"
+      },
+      "postseason_label": "Playoffs",
+      "postseason_round_labels": {},
+      "postseason_tie_note": "No ties in NFL playoffs"
+    },
+    "windows": {
+      "season": {
+        "start": "09-01",
+        "end": "02-15"
+      },
+      "postseason": {
+        "start": "01-08",
+        "end": "02-15"
+      }
+    },
     "elo": {
       "initial": 1500,
       "scale": 400,

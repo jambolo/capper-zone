@@ -1,4 +1,6 @@
-use rating_core::{EloTuneSettings, Game, GameFile, HISTORY_SCHEMA_VERSION, LeagueConfig, Outcome};
+use rating_core::{
+    BayesianGrid, EloGrid, EloTuneSettings, Game, GameFile, HISTORY_SCHEMA_VERSION, LeagueConfig, Outcome, TuningGrids,
+};
 use serde_json::Value;
 use std::{fs, path::Path, process::Command};
 
@@ -46,7 +48,7 @@ fn fixture() -> (LeagueConfig, GameFile) {
 fn invoke(root: &Path, extra: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_elo-tune"))
         .current_dir(root)
-        .args(["--config", "config.json", "--data-dir", "data"])
+        .args(["--league", "nfl", "--config-dir", ".", "--data-dir", "data"])
         .args(extra)
         .output()
         .unwrap()
@@ -59,7 +61,7 @@ fn cli_is_read_only_repeatable_and_selects_independently_of_heldout_outcomes() {
     let config_bytes = serde_json::to_vec(&cfg).unwrap();
     let history_bytes = serde_json::to_vec(&history).unwrap();
     fs::create_dir_all(dir.path().join("data/nfl")).unwrap();
-    fs::write(dir.path().join("config.json"), &config_bytes).unwrap();
+    fs::write(dir.path().join("nfl.json"), &config_bytes).unwrap();
     fs::write(dir.path().join("data/nfl/history.json"), &history_bytes).unwrap();
     fs::write(dir.path().join("data/nfl/elo-2006.json"), "untouched seed").unwrap();
     let started = chrono::Utc::now();
@@ -98,7 +100,7 @@ fn cli_is_read_only_repeatable_and_selects_independently_of_heldout_outcomes() {
     original.as_object_mut().unwrap().remove("run_at");
     repeated.as_object_mut().unwrap().remove("run_at");
     assert_eq!(original, repeated);
-    assert_eq!(fs::read(dir.path().join("config.json")).unwrap(), config_bytes);
+    assert_eq!(fs::read(dir.path().join("nfl.json")).unwrap(), config_bytes);
     assert_eq!(fs::read(dir.path().join("data/nfl/history.json")).unwrap(), history_bytes);
     assert_eq!(
         fs::read_to_string(dir.path().join("data/nfl/elo-2006.json")).unwrap(),
@@ -126,7 +128,7 @@ fn cli_is_read_only_repeatable_and_selects_independently_of_heldout_outcomes() {
     other_bayesian.bayesian.prior_sd_elo = 500.0;
     other_bayesian.bayesian.tie_prior_games = 1.0;
     other_bayesian.bayesian.tie_prior_rate = 0.25;
-    fs::write(dir.path().join("config.json"), serde_json::to_vec(&other_bayesian).unwrap()).unwrap();
+    fs::write(dir.path().join("nfl.json"), serde_json::to_vec(&other_bayesian).unwrap()).unwrap();
     let independent = invoke(dir.path(), &["--test-end", "2005"]);
     assert!(independent.status.success());
     let independent: Value = serde_json::from_slice(&independent.stdout).unwrap();
@@ -155,7 +157,7 @@ fn cli_boundaries_override_config_and_work_without_defaults() {
         None,
     ] {
         cfg.elo_tune = defaults;
-        fs::write(dir.path().join("config.json"), serde_json::to_vec(&cfg).unwrap()).unwrap();
+        fs::write(dir.path().join("nfl.json"), serde_json::to_vec(&cfg).unwrap()).unwrap();
         if cfg.elo_tune.is_none() {
             let missing = invoke(dir.path(), &[]);
             assert!(!missing.status.success());
@@ -179,7 +181,7 @@ fn cli_rejects_invalid_splits_missing_seasons_and_unfinished_history() {
     let dir = tempfile::tempdir().unwrap();
     let (cfg, history) = fixture();
     fs::create_dir_all(dir.path().join("data/nfl")).unwrap();
-    fs::write(dir.path().join("config.json"), serde_json::to_vec(&cfg).unwrap()).unwrap();
+    fs::write(dir.path().join("nfl.json"), serde_json::to_vec(&cfg).unwrap()).unwrap();
     let history_path = dir.path().join("data/nfl/history.json");
     fs::write(&history_path, serde_json::to_vec(&history).unwrap()).unwrap();
     let mut obsolete = serde_json::to_value(&history).unwrap();
@@ -216,4 +218,97 @@ fn cli_rejects_invalid_splits_missing_seasons_and_unfinished_history() {
     let unfinished = invoke(dir.path(), &["--test-end", "2005"]);
     assert!(!unfinished.status.success());
     assert!(String::from_utf8_lossy(&unfinished.stderr).contains("unreported game"));
+}
+
+#[test]
+fn cli_requires_league() {
+    let output = Command::new(env!("CARGO_BIN_EXE_elo-tune")).output().unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--league <LEAGUE>"));
+}
+
+/// `evaluated_ranges` covers the baseline and the starting grid, and `selected_on_boundary` lists exactly
+/// the parameters (in key order) whose selected value equals an evaluated extreme; the note appears iff any do.
+fn assert_boundary_report(report: &Value) {
+    let search = &report["search"];
+    let mut on_boundary = Vec::new();
+    for name in ["k", "home_advantage", "offseason_regression"] {
+        let range = &search["evaluated_ranges"][name];
+        let (lo, hi) = (range[0].as_f64().unwrap(), range[1].as_f64().unwrap());
+        let selected = report["selected_parameters"][name].as_f64().unwrap();
+        let baseline = report["baseline_parameters"][name].as_f64().unwrap();
+        let grid = search["coarse_grid"][name]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap());
+        for value in grid.chain([selected, baseline]) {
+            assert!(lo <= value && value <= hi, "{name}: {value} outside [{lo}, {hi}]");
+        }
+        if selected == lo || selected == hi {
+            on_boundary.push(name);
+        }
+    }
+    assert_eq!(search["selected_on_boundary"], serde_json::json!(on_boundary));
+    let noted = report["notes"].as_array().unwrap().iter().any(|n| {
+        n.as_str()
+            .unwrap()
+            .starts_with("Selected parameters lie on a searched boundary (")
+    });
+    assert_eq!(noted, !on_boundary.is_empty());
+}
+
+#[test]
+fn cli_reports_grid_source_evaluated_ranges_and_boundary_flags() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut cfg, history) = fixture();
+    fs::create_dir_all(dir.path().join("data/nfl")).unwrap();
+    fs::write(
+        dir.path().join("data/nfl/history.json"),
+        serde_json::to_vec(&history).unwrap(),
+    )
+    .unwrap();
+    let run = |cfg: &LeagueConfig| -> Value {
+        fs::write(dir.path().join("nfl.json"), serde_json::to_vec(cfg).unwrap()).unwrap();
+        let output = invoke(dir.path(), &[]);
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        serde_json::from_slice(&output.stdout).unwrap()
+    };
+    let default = run(&cfg);
+    assert_eq!(default["search"]["grid_source"], "default");
+    assert_eq!(
+        default["search"]["coarse_grid"],
+        serde_json::json!({
+            "k": [10.0, 15.0, 20.0, 30.0, 40.0],
+            "home_advantage": [0.0, 25.0, 40.0, 55.0, 70.0],
+            "offseason_regression": [0.0, 0.15, 1.0 / 3.0, 0.5, 0.75]
+        })
+    );
+    assert_boundary_report(&default);
+
+    cfg.tuning_grids = Some(TuningGrids {
+        elo: None,
+        bayesian: Some(BayesianGrid {
+            prior_sd_elo: vec![60.0],
+            tie_prior_games: vec![20.0],
+            tie_prior_rate: vec![0.002],
+        }),
+    });
+    let bayesian_only = run(&cfg);
+    assert_eq!(bayesian_only["search"], default["search"]);
+    assert_eq!(bayesian_only["selected_parameters"], default["selected_parameters"]);
+
+    let grid = EloGrid {
+        k: vec![15.0, 25.0],
+        home_advantage: vec![30.0, 50.0],
+        offseason_regression: vec![0.2, 0.4],
+    };
+    cfg.tuning_grids = Some(TuningGrids {
+        elo: Some(grid.clone()),
+        bayesian: None,
+    });
+    let configured = run(&cfg);
+    assert_eq!(configured["search"]["grid_source"], "config");
+    assert_eq!(configured["search"]["coarse_grid"], serde_json::to_value(&grid).unwrap());
+    assert_boundary_report(&configured);
 }

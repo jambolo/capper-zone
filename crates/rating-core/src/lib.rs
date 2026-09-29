@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -11,10 +11,12 @@ use std::{
     time::Duration,
 };
 
+pub mod adapters;
 pub mod bayesian;
 mod elo;
 mod time;
 pub mod tuning;
+pub use adapters::{SourceAdapter, adapter_for};
 pub use elo::{EloReplay, expected_home, regress_rating, replay_elo};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +61,61 @@ pub struct TuningSettings {
     pub test_end: i32,
 }
 pub use TuningSettings as EloTuneSettings;
+/// Starting Elo search grid for `elo-tune`; each list is non-empty, finite, and strictly ascending.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EloGrid {
+    pub k: Vec<f64>,
+    pub home_advantage: Vec<f64>,
+    pub offseason_regression: Vec<f64>,
+}
+/// Starting Bayesian search grid for `bayes-tune`; each list is non-empty, finite, and strictly ascending.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BayesianGrid {
+    pub prior_sd_elo: Vec<f64>,
+    pub tie_prior_games: Vec<f64>,
+    pub tie_prior_rate: Vec<f64>,
+}
+/// Optional per-league tuner search grids; an absent grid means the tuner's default grid.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TuningGrids {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub elo: Option<EloGrid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bayesian: Option<BayesianGrid>,
+}
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ScheduleUnit {
+    Round,
+    Date,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ScheduleFilter {
+    pub unit: ScheduleUnit,
+    pub label: String,
+    pub all_label: String,
+}
+/// League display vocabulary; shared UI code renders only these strings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DisplayVocabulary {
+    pub start_time_label: String,
+    pub round_name: Option<String>,
+    pub schedule_filter: ScheduleFilter,
+    pub postseason_label: String,
+    pub postseason_round_labels: BTreeMap<String, String>,
+    pub postseason_tie_note: String,
+}
+/// Inclusive "MM-DD" range that may cross the year boundary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MonthDayWindow {
+    pub start: String,
+    pub end: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LeagueWindows {
+    pub season: MonthDayWindow,
+    pub postseason: MonthDayWindow,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeagueConfig {
     pub schema_version: u32,
@@ -70,12 +127,16 @@ pub struct LeagueConfig {
     pub teams: Vec<Team>,
     pub aliases: BTreeMap<String, String>,
     pub ties_allowed_in: Vec<String>,
+    pub display: DisplayVocabulary,
+    pub windows: LeagueWindows,
     pub elo: EloSettings,
     pub bayesian: BayesianSettings,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elo_tune: Option<EloTuneSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bayes_tune: Option<TuningSettings>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tuning_grids: Option<TuningGrids>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -164,23 +225,112 @@ pub fn load_config(path: &Path) -> Result<(LeagueConfig, Vec<u8>)> {
     Ok((config, bytes))
 }
 
+/// League ids name files and storage keys, so they are restricted to ASCII letters, digits, and `-`.
+fn is_safe_league_id(id: &str) -> bool {
+    !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+/// Load `<config_dir>/<league>.json` and require its `id` to be `league`.
+pub fn load_league_config(config_dir: &Path, league: &str) -> Result<(LeagueConfig, Vec<u8>)> {
+    ensure!(is_safe_league_id(league), "Unsafe league id");
+    let (config, bytes) = load_config(&config_dir.join(format!("{league}.json")))?;
+    ensure!(
+        config.id == league,
+        "Config id {} does not match requested league {league}",
+        config.id
+    );
+    Ok((config, bytes))
+}
+
+const DAYS_IN_MONTH: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/// Day of year (1-365) in a non-leap year; `None` unless `value` is a valid "MM-DD".
+fn month_day_ordinal(value: &str) -> Option<u32> {
+    let b = value.as_bytes();
+    if b.len() != 5 || b[2] != b'-' || ![b[0], b[1], b[3], b[4]].iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    let month: usize = value[..2].parse().ok()?;
+    let day: u32 = value[3..].parse().ok()?;
+    if !(1..=12).contains(&month) || !(1..=DAYS_IN_MONTH[month - 1]).contains(&day) {
+        return None;
+    }
+    Some(DAYS_IN_MONTH[..month - 1].iter().sum::<u32>() + day)
+}
+
+impl DisplayVocabulary {
+    pub fn validate(&self) -> Result<()> {
+        let f = &self.schedule_filter;
+        let labels = [
+            &self.start_time_label,
+            &f.label,
+            &f.all_label,
+            &self.postseason_label,
+            &self.postseason_tie_note,
+        ];
+        ensure!(
+            labels.iter().all(|s| !s.is_empty())
+                && self.round_name.as_deref().is_none_or(|s| !s.is_empty())
+                && self
+                    .postseason_round_labels
+                    .iter()
+                    .all(|(k, v)| !k.is_empty() && !v.is_empty()),
+            "Empty display label"
+        );
+        Ok(())
+    }
+}
+
+impl LeagueWindows {
+    pub fn validate(&self) -> Result<()> {
+        let ord = |md: &str| month_day_ordinal(md).with_context(|| format!("Invalid month-day: {md}"));
+        let (ss, se) = (ord(&self.season.start)?, ord(&self.season.end)?);
+        let (ps, pe) = (ord(&self.postseason.start)?, ord(&self.postseason.end)?);
+        ensure!(ss != se, "Season window start and end must be different");
+        // Days after season.start, wrapping at the year boundary.
+        let span = |to: u32| (to + 365 - ss) % 365;
+        ensure!(
+            span(ps) <= span(pe) && span(pe) <= span(se),
+            "Postseason window must lie within the season window"
+        );
+        Ok(())
+    }
+}
+
+/// Non-empty, finite, strictly ascending, and every value inside the parameter's domain.
+fn valid_grid_axis(values: &[f64], in_domain: fn(f64) -> bool) -> bool {
+    !values.is_empty() && values.iter().all(|&v| v.is_finite() && in_domain(v)) && values.windows(2).all(|pair| pair[0] < pair[1])
+}
+
+impl TuningGrids {
+    pub fn validate(&self) -> Result<()> {
+        let elo = self.elo.as_ref().is_none_or(|g| {
+            valid_grid_axis(&g.k, |v| v > 0.0)
+                && valid_grid_axis(&g.home_advantage, |v| v >= 0.0)
+                && valid_grid_axis(&g.offseason_regression, |v| (0.0..=1.0).contains(&v))
+        });
+        let bayesian = self.bayesian.as_ref().is_none_or(|g| {
+            valid_grid_axis(&g.prior_sd_elo, |v| v > 0.0)
+                && valid_grid_axis(&g.tie_prior_games, |v| v > 0.0)
+                && valid_grid_axis(&g.tie_prior_rate, |v| v > 0.0 && v < 1.0)
+        });
+        ensure!(elo && bayesian, "Invalid tuning grid");
+        Ok(())
+    }
+}
+
 impl LeagueConfig {
     pub fn validate(&self) -> Result<()> {
-        ensure!(self.schema_version == 1, "Unsupported config schema");
-        ensure!(
-            !self.id.is_empty() && self.id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'),
-            "Unsafe league id"
-        );
+        ensure!(self.schema_version == 2, "Unsupported config schema");
+        ensure!(is_safe_league_id(&self.id), "Unsafe league id");
         ensure!(
             (1..=12).contains(&self.season_rollover_month),
             "Invalid season rollover month"
         );
         ensure!((1900..=2200).contains(&self.history_start), "Invalid historical start");
-        ensure!(
-            ["nflverse-csv", "canonical-json"].contains(&self.source.kind.as_str()),
-            "Unknown source adapter"
-        );
+        ensure!(adapter_for(&self.source.kind).is_ok(), "Unknown source adapter");
         ensure!(self.source.url.starts_with("https://"), "Source URL must use HTTPS");
+        adapter_for(&self.source.kind)?.validate_config(self)?;
         ensure!(self.teams.len() >= 2, "At least two teams required");
         let ids: BTreeSet<_> = self.teams.iter().map(|t| t.id.as_str()).collect();
         ensure!(ids.len() == self.teams.len(), "Duplicate team ids");
@@ -239,6 +389,8 @@ impl LeagueConfig {
                 .all(|s| ["regular", "postseason"].contains(&s.as_str())),
             "Unknown phase in tie rules"
         );
+        self.display.validate()?;
+        self.windows.validate()?;
         let e = &self.elo;
         ensure!(
             [e.initial, e.scale, e.k, e.home_advantage, e.offseason_regression]
@@ -260,6 +412,9 @@ impl LeagueConfig {
                 && b.tie_prior_rate < 1.0,
             "Invalid Bayesian parameters"
         );
+        if let Some(grids) = &self.tuning_grids {
+            grids.validate()?;
+        }
         Ok(())
     }
     pub fn current_season(&self) -> i32 {
@@ -282,29 +437,30 @@ impl LeagueConfig {
     }
 }
 
+/// Source-local game row that source adapters build and normalize into a `Game`.
 #[derive(Deserialize)]
-struct SourceGame {
-    id: String,
-    league: String,
-    season: i32,
+pub(crate) struct SourceGame {
+    pub(crate) id: String,
+    pub(crate) league: String,
+    pub(crate) season: i32,
     #[serde(default)]
-    date: String,
+    pub(crate) date: String,
     /// Source-local HH:mm, or null when the source does not supply a start time.
-    time: Option<String>,
-    timezone: String,
-    phase: String,
-    round_label: String,
-    round: u32,
-    home_team: String,
-    away_team: String,
-    home_source_id: String,
-    away_source_id: String,
-    neutral: bool,
-    result: Option<Outcome>,
+    pub(crate) time: Option<String>,
+    pub(crate) timezone: String,
+    pub(crate) phase: String,
+    pub(crate) round_label: String,
+    pub(crate) round: u32,
+    pub(crate) home_team: String,
+    pub(crate) away_team: String,
+    pub(crate) home_source_id: String,
+    pub(crate) away_source_id: String,
+    pub(crate) neutral: bool,
+    pub(crate) result: Option<Outcome>,
 }
 
 impl SourceGame {
-    fn normalize(self, warn: &mut impl FnMut(String)) -> Result<Game> {
+    pub(crate) fn normalize(self, warn: &mut dyn FnMut(String)) -> Result<Game> {
         Ok(Game {
             start_time_utc: time::start_time_utc(&self, warn)?,
             id: self.id,
@@ -323,21 +479,11 @@ impl SourceGame {
     }
 }
 
-#[derive(Deserialize)]
-struct CsvGame {
-    game_id: String,
-    season: i32,
-    game_type: String,
-    week: u32,
-    #[serde(default)]
-    gameday: String,
-    #[serde(default)]
-    gametime: Option<String>,
-    away_team: String,
-    home_team: String,
-    away_score: Option<u32>,
-    home_score: Option<u32>,
-    location: String,
+/// Parse source documents with the configured adapter, then validate and sort the games.
+pub fn parse_documents(documents: &[String], cfg: &LeagueConfig, mut warn: impl FnMut(String)) -> Result<Vec<Game>> {
+    let mut games = adapter_for(&cfg.source.kind)?.parse(documents, cfg, &mut warn)?;
+    validate_games(&mut games, cfg)?;
+    Ok(games)
 }
 
 /// Provider adapters normalize into the same league-independent game contract.
@@ -345,86 +491,12 @@ pub fn parse_source(text: &str, cfg: &LeagueConfig) -> Result<Vec<Game>> {
     parse_source_with_warnings(text, cfg, |_| {})
 }
 
-pub fn parse_source_with_warnings(text: &str, cfg: &LeagueConfig, mut warn: impl FnMut(String)) -> Result<Vec<Game>> {
-    let mut games = Vec::new();
-    match cfg.source.kind.as_str() {
-        "nflverse-csv" => {
-            let mut reader = csv::Reader::from_reader(text.as_bytes());
-            for row in reader.deserialize::<CsvGame>() {
-                let r = row.context("Malformed nflverse CSV row")?;
-                if r.season < cfg.history_start {
-                    continue;
-                }
-                let phase = match r.game_type.as_str() {
-                    "REG" => "regular",
-                    "WC" | "DIV" | "CON" | "SB" => "postseason",
-                    "PRE" | "PRO" | "PB" => continue,
-                    other => bail!("Unknown game type: {other}"),
-                };
-                let result = match (r.home_score, r.away_score) {
-                    (None, None) => None,
-                    (Some(h), Some(a)) => Some(if h > a {
-                        Outcome::HomeWin
-                    } else if h < a {
-                        Outcome::AwayWin
-                    } else {
-                        Outcome::Tie
-                    }),
-                    _ => bail!("Only one score present for {}", r.game_id),
-                };
-                ensure!(
-                    ["Home", "Neutral"].contains(&r.location.as_str()),
-                    "Unknown location for {}",
-                    r.game_id
-                );
-                games.push(SourceGame {
-                    id: r.game_id,
-                    league: cfg.id.clone(),
-                    season: r.season,
-                    date: r.gameday,
-                    time: r.gametime,
-                    timezone: "America/New_York".into(),
-                    phase: phase.into(),
-                    round_label: r.game_type,
-                    round: r.week,
-                    home_team: cfg.team_id(&r.home_team),
-                    away_team: cfg.team_id(&r.away_team),
-                    home_source_id: r.home_team,
-                    away_source_id: r.away_team,
-                    neutral: r.location == "Neutral",
-                    result,
-                });
-            }
-        }
-        "canonical-json" => {
-            #[derive(Deserialize)]
-            struct Input {
-                schema_version: u32,
-                league: String,
-                games: Vec<SourceGame>,
-            }
-            let input: Input = serde_json::from_str(text)?;
-            ensure!(
-                input.schema_version == 2 && input.league == cfg.id,
-                "Incompatible source envelope; canonical JSON requires schema version 2"
-            );
-            games = input.games;
-            for g in &mut games {
-                g.home_team = cfg.team_id(&g.home_team);
-                g.away_team = cfg.team_id(&g.away_team);
-            }
-        }
-        _ => bail!("Unknown source adapter"),
-    }
-    let mut games = games
-        .into_iter()
-        .map(|g| g.normalize(&mut warn))
-        .collect::<Result<Vec<_>>>()?;
-    validate_games(&mut games, cfg)?;
-    Ok(games)
+pub fn parse_source_with_warnings(text: &str, cfg: &LeagueConfig, warn: impl FnMut(String)) -> Result<Vec<Game>> {
+    parse_documents(&[text.to_owned()], cfg, warn)
 }
 
 pub fn validate_games(games: &mut [Game], cfg: &LeagueConfig) -> Result<()> {
+    let strict_source_ids = adapter_for(&cfg.source.kind)?.strict_source_ids();
     let ids: BTreeSet<_> = cfg.teams.iter().map(|t| t.id.as_str()).collect();
     let mut seen = BTreeSet::new();
     for g in games.iter() {
@@ -444,7 +516,7 @@ pub fn validate_games(games: &mut [Game], cfg: &LeagueConfig) -> Result<()> {
             );
             let era = cfg.identity(team, g.season)?;
             ensure!(
-                cfg.source.kind != "nflverse-csv" || era.source_ids.contains(source),
+                !strict_source_ids || era.source_ids.contains(source),
                 "Source team abbreviation is invalid for season {} in {}",
                 g.season,
                 g.id

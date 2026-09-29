@@ -3,7 +3,7 @@ import { PredictionService, message, type PublicState, type RefreshPhase } from 
 import type { Posterior } from './model.ts';
 import { memoryStore, readConfig } from './storage.ts';
 
-export type RefreshRequest = { configUrl: string; dataBase: string; cache: Record<string, string> };
+export type RefreshRequest = { league: string; configUrl: string; dataBase: string; cache: Record<string, string> };
 export type RefreshMessage =
   | { type: 'progress'; phase: RefreshPhase }
   | { type: 'complete'; state: PublicState; model: Posterior | null; cache: Record<string, string> }
@@ -12,6 +12,8 @@ export type RefreshMessage =
 export async function refresh(request: RefreshRequest, emit: (message: RefreshMessage) => void): Promise<void> {
   try {
     const { config, hash } = await readConfig(request.configUrl);
+    if (config.id !== request.league)
+      throw new Error(`Configuration id ${config.id} does not match requested league ${request.league}`);
     const store = memoryStore();
     for (const [key, value] of Object.entries(request.cache)) store.setItem(key, value);
     const service = new PredictionService({

@@ -1,0 +1,2038 @@
+{
+  "league": "mlb",
+  "documents": [
+    {
+      "dates": [
+        {
+          "date": "2000-04-15",
+          "games": [
+            {
+              "gamePk": 4207,
+              "gameType": "R",
+              "season": "2000",
+              "gameDate": "2000-04-15T23:05:00Z",
+              "officialDate": "2000-04-15",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "team": {
+                    "id": 120,
+                    "name": "Montreal Expos"
+                  }
+                },
+                "home": {
+                  "team": {
+                    "id": 143,
+                    "name": "Philadelphia Phillies"
+                  }
+                }
+              },
+              "venue": {
+                "id": 26,
+                "name": "Veterans Stadium"
+              },
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2004-06-01",
+          "games": [
+            {
+              "gamePk": 900013,
+              "gameType": "R",
+              "season": "2004",
+              "gameDate": "2004-06-02T02:05:00Z",
+              "officialDate": "2004-06-01",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 6,
+                  "team": {
+                    "id": 111,
+                    "name": "Boston Red Sox"
+                  }
+                },
+                "home": {
+                  "score": 7,
+                  "team": {
+                    "id": 108,
+                    "name": "Anaheim Angels"
+                  }
+                }
+              },
+              "venue": {
+                "id": 1,
+                "name": "Angel Stadium of Anaheim"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2004-06-15",
+          "games": [
+            {
+              "gamePk": 900011,
+              "gameType": "R",
+              "season": "2004",
+              "gameDate": "2004-06-15T23:05:00Z",
+              "officialDate": "2004-06-15",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 8,
+                  "team": {
+                    "id": 142,
+                    "name": "Minnesota Twins"
+                  }
+                },
+                "home": {
+                  "score": 2,
+                  "team": {
+                    "id": 120,
+                    "name": "Montreal Expos"
+                  }
+                }
+              },
+              "venue": {
+                "id": 24,
+                "name": "Olympic Stadium"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2005-06-01",
+          "games": [
+            {
+              "gamePk": 900014,
+              "gameType": "R",
+              "season": "2005",
+              "gameDate": "2005-06-01T23:05:00Z",
+              "officialDate": "2005-06-01",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 10,
+                  "team": {
+                    "id": 108,
+                    "name": "Los Angeles Angels"
+                  }
+                },
+                "home": {
+                  "score": 7,
+                  "team": {
+                    "id": 145,
+                    "name": "Chicago White Sox"
+                  }
+                }
+              },
+              "venue": {
+                "id": 4,
+                "name": "U.S. Cellular Field"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2005-06-17",
+          "games": [
+            {
+              "gamePk": 900012,
+              "gameType": "R",
+              "season": "2005",
+              "gameDate": "2005-06-18T00:05:00Z",
+              "officialDate": "2005-06-17",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 1,
+                  "team": {
+                    "id": 120,
+                    "name": "Washington Nationals"
+                  }
+                },
+                "home": {
+                  "score": 8,
+                  "team": {
+                    "id": 140,
+                    "name": "Texas Rangers"
+                  }
+                }
+              },
+              "venue": {
+                "id": 13,
+                "name": "Ameriquest Field"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2007-06-01",
+          "games": [
+            {
+              "gamePk": 900017,
+              "gameType": "R",
+              "season": "2007",
+              "gameDate": "2007-06-01T23:10:00Z",
+              "officialDate": "2007-06-01",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 4,
+                  "team": {
+                    "id": 118,
+                    "name": "Kansas City Royals"
+                  }
+                },
+                "home": {
+                  "score": 1,
+                  "team": {
+                    "id": 139,
+                    "name": "Tampa Bay Devil Rays"
+                  }
+                }
+              },
+              "venue": {
+                "id": 12,
+                "name": "Tropicana Field"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2008-06-03",
+          "games": [
+            {
+              "gamePk": 900018,
+              "gameType": "R",
+              "season": "2008",
+              "gameDate": "2008-06-03T23:05:00Z",
+              "officialDate": "2008-06-03",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 4,
+                  "team": {
+                    "id": 139,
+                    "name": "Tampa Bay Rays"
+                  }
+                },
+                "home": {
+                  "score": 7,
+                  "team": {
+                    "id": 111,
+                    "name": "Boston Red Sox"
+                  }
+                }
+              },
+              "venue": {
+                "id": 3,
+                "name": "Fenway Park"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2011-06-03",
+          "games": [
+            {
+              "gamePk": 900019,
+              "gameType": "R",
+              "season": "2011",
+              "gameDate": "2011-06-03T23:10:00Z",
+              "officialDate": "2011-06-03",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 6,
+                  "team": {
+                    "id": 158,
+                    "name": "Milwaukee Brewers"
+                  }
+                },
+                "home": {
+                  "score": 5,
+                  "team": {
+                    "id": 146,
+                    "name": "Florida Marlins"
+                  }
+                }
+              },
+              "venue": {
+                "id": 20,
+                "name": "Sun Life Stadium"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2012-06-01",
+          "games": [
+            {
+              "gamePk": 900020,
+              "gameType": "R",
+              "season": "2012",
+              "gameDate": "2012-06-01T23:05:00Z",
+              "officialDate": "2012-06-01",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 4,
+                  "team": {
+                    "id": 146,
+                    "name": "Miami Marlins"
+                  }
+                },
+                "home": {
+                  "score": 6,
+                  "team": {
+                    "id": 143,
+                    "name": "Philadelphia Phillies"
+                  }
+                }
+              },
+              "venue": {
+                "id": 2681,
+                "name": "Citizens Bank Park"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2015-06-15",
+          "games": [
+            {
+              "gamePk": 900015,
+              "gameType": "R",
+              "season": "2015",
+              "gameDate": "2015-06-16T02:05:00Z",
+              "officialDate": "2015-06-15",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 7,
+                  "team": {
+                    "id": 109,
+                    "name": "Arizona Diamondbacks"
+                  }
+                },
+                "home": {
+                  "score": 3,
+                  "team": {
+                    "id": 108,
+                    "name": "Los Angeles Angels"
+                  }
+                }
+              },
+              "venue": {
+                "id": 1,
+                "name": "Angel Stadium of Anaheim"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2016-06-03",
+          "games": [
+            {
+              "gamePk": 900016,
+              "gameType": "R",
+              "season": "2016",
+              "gameDate": "2016-06-03T23:05:00Z",
+              "officialDate": "2016-06-03",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 9,
+                  "team": {
+                    "id": 108,
+                    "name": "Los Angeles Angels"
+                  }
+                },
+                "home": {
+                  "score": 2,
+                  "team": {
+                    "id": 134,
+                    "name": "Pittsburgh Pirates"
+                  }
+                }
+              },
+              "venue": {
+                "id": 31,
+                "name": "PNC Park"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2016-09-25",
+          "games": [
+            {
+              "gamePk": 449187,
+              "gameType": "R",
+              "season": "2016",
+              "gameDate": "2016-09-25T17:10:00Z",
+              "officialDate": "2016-09-25",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "C",
+                "detailedState": "Cancelled",
+                "statusCode": "CA",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "team": {
+                    "id": 144,
+                    "name": "Atlanta Braves"
+                  }
+                },
+                "home": {
+                  "team": {
+                    "id": 146,
+                    "name": "Miami Marlins"
+                  }
+                }
+              },
+              "venue": {
+                "id": 4169,
+                "name": "Marlins Park"
+              },
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2016-09-29",
+          "games": [
+            {
+              "gamePk": 449246,
+              "gameType": "R",
+              "season": "2016",
+              "gameDate": "2016-09-29T17:10:00Z",
+              "officialDate": "2016-10-03",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "D",
+                "detailedState": "Postponed",
+                "statusCode": "DR",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "team": {
+                    "id": 114,
+                    "name": "Cleveland Indians"
+                  }
+                },
+                "home": {
+                  "team": {
+                    "id": 116,
+                    "name": "Detroit Tigers"
+                  }
+                }
+              },
+              "venue": {
+                "id": 2394,
+                "name": "Comerica Park"
+              },
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            },
+            {
+              "gamePk": 449244,
+              "gameType": "R",
+              "season": "2016",
+              "gameDate": "2016-09-29T23:05:00Z",
+              "officialDate": "2016-09-29",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "FT",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 1,
+                  "team": {
+                    "id": 112,
+                    "name": "Chicago Cubs"
+                  }
+                },
+                "home": {
+                  "score": 1,
+                  "team": {
+                    "id": 134,
+                    "name": "Pittsburgh Pirates"
+                  }
+                }
+              },
+              "venue": {
+                "id": 31,
+                "name": "PNC Park"
+              },
+              "isTie": true,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2016-10-03",
+          "games": [
+            {
+              "gamePk": 449246,
+              "gameType": "R",
+              "season": "2016",
+              "gameDate": "2016-10-03T17:10:00Z",
+              "officialDate": "2016-10-03",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "C",
+                "detailedState": "Cancelled",
+                "statusCode": "CO",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "team": {
+                    "id": 114,
+                    "name": "Cleveland Indians"
+                  }
+                },
+                "home": {
+                  "team": {
+                    "id": 116,
+                    "name": "Detroit Tigers"
+                  }
+                }
+              },
+              "venue": {
+                "id": 2394,
+                "name": "Comerica Park"
+              },
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2020-08-11",
+          "games": [
+            {
+              "gamePk": 630901,
+              "gameType": "R",
+              "season": "2020",
+              "gameDate": "2020-08-11T22:37:00Z",
+              "officialDate": "2020-08-11",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 4,
+                  "team": {
+                    "id": 146,
+                    "name": "Miami Marlins"
+                  }
+                },
+                "home": {
+                  "score": 5,
+                  "team": {
+                    "id": 141,
+                    "name": "Toronto Blue Jays"
+                  }
+                }
+              },
+              "venue": {
+                "id": 2756,
+                "name": "Sahlen Field"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2021-06-01",
+          "games": [
+            {
+              "gamePk": 900021,
+              "gameType": "R",
+              "season": "2021",
+              "gameDate": "2021-06-01T22:10:00Z",
+              "officialDate": "2021-06-01",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 5,
+                  "team": {
+                    "id": 145,
+                    "name": "Chicago White Sox"
+                  }
+                },
+                "home": {
+                  "score": 6,
+                  "team": {
+                    "id": 114,
+                    "name": "Cleveland Indians"
+                  }
+                }
+              },
+              "venue": {
+                "id": 5,
+                "name": "Progressive Field"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2022-06-03",
+          "games": [
+            {
+              "gamePk": 900022,
+              "gameType": "R",
+              "season": "2022",
+              "gameDate": "2022-06-03T23:05:00Z",
+              "officialDate": "2022-06-03",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 6,
+                  "team": {
+                    "id": 114,
+                    "name": "Cleveland Guardians"
+                  }
+                },
+                "home": {
+                  "score": 3,
+                  "team": {
+                    "id": 110,
+                    "name": "Baltimore Orioles"
+                  }
+                }
+              },
+              "venue": {
+                "id": 2,
+                "name": "Oriole Park at Camden Yards"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2024-06-04",
+          "games": [
+            {
+              "gamePk": 900023,
+              "gameType": "R",
+              "season": "2024",
+              "gameDate": "2024-06-05T01:40:00Z",
+              "officialDate": "2024-06-04",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 4,
+                  "team": {
+                    "id": 136,
+                    "name": "Seattle Mariners"
+                  }
+                },
+                "home": {
+                  "score": 3,
+                  "team": {
+                    "id": 133,
+                    "name": "Oakland Athletics"
+                  }
+                }
+              },
+              "venue": {
+                "id": 10,
+                "name": "Oakland Coliseum"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2025-03-01",
+          "games": [
+            {
+              "gamePk": 900001,
+              "gameType": "S",
+              "season": "2025",
+              "gameDate": "2025-03-01T18:05:00Z",
+              "officialDate": "2025-03-01",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 3,
+                  "team": {
+                    "id": 147,
+                    "name": "New York Yankees"
+                  }
+                },
+                "home": {
+                  "score": 5,
+                  "team": {
+                    "id": 111,
+                    "name": "Boston Red Sox"
+                  }
+                }
+              },
+              "venue": {
+                "id": 3,
+                "name": "Fenway Park"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-03-18",
+          "games": [
+            {
+              "gamePk": 778563,
+              "gameType": "R",
+              "season": "2025",
+              "gameDate": "2025-03-18T10:10:00Z",
+              "officialDate": "2025-03-18",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 4,
+                  "team": {
+                    "id": 119,
+                    "name": "Los Angeles Dodgers"
+                  }
+                },
+                "home": {
+                  "score": 1,
+                  "team": {
+                    "id": 112,
+                    "name": "Chicago Cubs"
+                  }
+                }
+              },
+              "venue": {
+                "id": 2397,
+                "name": "Tokyo Dome"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-03-24",
+          "games": [
+            {
+              "gamePk": 900002,
+              "gameType": "E",
+              "season": "2025",
+              "gameDate": "2025-03-25T02:10:00Z",
+              "officialDate": "2025-03-24",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 2,
+                  "team": {
+                    "id": 136,
+                    "name": "Seattle Mariners"
+                  }
+                },
+                "home": {
+                  "score": 4,
+                  "team": {
+                    "id": 135,
+                    "name": "San Diego Padres"
+                  }
+                }
+              },
+              "venue": {
+                "id": 2680,
+                "name": "Petco Park"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-04-11",
+          "games": [
+            {
+              "gamePk": 778370,
+              "gameType": "R",
+              "season": "2025",
+              "gameDate": "2025-04-11T23:05:00Z",
+              "officialDate": "2025-04-11",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Completed Early",
+                "statusCode": "FR",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 9,
+                  "team": {
+                    "id": 137,
+                    "name": "San Francisco Giants"
+                  }
+                },
+                "home": {
+                  "score": 1,
+                  "team": {
+                    "id": 147,
+                    "name": "New York Yankees"
+                  }
+                }
+              },
+              "venue": {
+                "id": 3313,
+                "name": "Yankee Stadium"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-05-10",
+          "games": [
+            {
+              "gamePk": 900004,
+              "gameType": "R",
+              "season": "2025",
+              "gameDate": "2025-05-10T17:05:00Z",
+              "officialDate": "2025-05-11",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "D",
+                "detailedState": "Postponed: Rain",
+                "statusCode": "DR",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "team": {
+                    "id": 111,
+                    "name": "Boston Red Sox"
+                  }
+                },
+                "home": {
+                  "team": {
+                    "id": 110,
+                    "name": "Baltimore Orioles"
+                  }
+                }
+              },
+              "venue": {
+                "id": 2,
+                "name": "Oriole Park at Camden Yards"
+              },
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-05-11",
+          "games": [
+            {
+              "gamePk": 900004,
+              "gameType": "R",
+              "season": "2025",
+              "gameDate": "2025-05-11T17:35:00Z",
+              "officialDate": "2025-05-11",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Completed Early: Rain",
+                "statusCode": "FR",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 2,
+                  "team": {
+                    "id": 111,
+                    "name": "Boston Red Sox"
+                  }
+                },
+                "home": {
+                  "score": 3,
+                  "team": {
+                    "id": 110,
+                    "name": "Baltimore Orioles"
+                  }
+                }
+              },
+              "venue": {
+                "id": 2,
+                "name": "Oriole Park at Camden Yards"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-06-01",
+          "games": [
+            {
+              "gamePk": 900024,
+              "gameType": "R",
+              "season": "2025",
+              "gameDate": "2025-06-01T17:37:00Z",
+              "officialDate": "2025-06-01",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 4,
+                  "team": {
+                    "id": 133,
+                    "name": "Athletics"
+                  }
+                },
+                "home": {
+                  "score": 8,
+                  "team": {
+                    "id": 141,
+                    "name": "Toronto Blue Jays"
+                  }
+                }
+              },
+              "venue": {
+                "id": 14,
+                "name": "Rogers Centre"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-07-15",
+          "games": [
+            {
+              "gamePk": 900003,
+              "gameType": "A",
+              "season": "2025",
+              "gameDate": "2025-07-16T00:00:00Z",
+              "officialDate": "2025-07-15",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 6,
+                  "team": {
+                    "id": 159,
+                    "name": "American League All-Stars"
+                  }
+                },
+                "home": {
+                  "score": 7,
+                  "team": {
+                    "id": 160,
+                    "name": "National League All-Stars"
+                  }
+                }
+              },
+              "venue": {
+                "id": 4705,
+                "name": "Truist Park"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-08-02",
+          "games": [
+            {
+              "gamePk": 776907,
+              "gameType": "R",
+              "season": "2025",
+              "gameDate": "2025-08-02T23:15:00Z",
+              "officialDate": "2025-08-02",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 4,
+                  "team": {
+                    "id": 144,
+                    "name": "Atlanta Braves"
+                  }
+                },
+                "home": {
+                  "score": 2,
+                  "team": {
+                    "id": 113,
+                    "name": "Cincinnati Reds"
+                  }
+                }
+              },
+              "venue": {
+                "id": 6130,
+                "name": "Bristol Motor Speedway"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-08-03",
+          "games": [
+            {
+              "gamePk": 776907,
+              "gameType": "R",
+              "season": "2025",
+              "gameDate": "2025-08-03T17:05:00Z",
+              "officialDate": "2025-08-02",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 4,
+                  "team": {
+                    "id": 144,
+                    "name": "Atlanta Braves"
+                  }
+                },
+                "home": {
+                  "score": 2,
+                  "team": {
+                    "id": 113,
+                    "name": "Cincinnati Reds"
+                  }
+                }
+              },
+              "venue": {
+                "id": 6130,
+                "name": "Bristol Motor Speedway"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-08-18",
+          "games": [
+            {
+              "gamePk": 776691,
+              "gameType": "R",
+              "season": "2025",
+              "gameDate": "2025-08-19T00:05:00Z",
+              "officialDate": "2025-08-19",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "D",
+                "detailedState": "Postponed",
+                "statusCode": "DR",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "team": {
+                    "id": 158,
+                    "name": "Milwaukee Brewers"
+                  }
+                },
+                "home": {
+                  "team": {
+                    "id": 112,
+                    "name": "Chicago Cubs"
+                  }
+                }
+              },
+              "venue": {
+                "id": 17,
+                "name": "Wrigley Field"
+              },
+              "gameNumber": 2,
+              "doubleHeader": "S"
+            }
+          ]
+        },
+        {
+          "date": "2025-08-19",
+          "games": [
+            {
+              "gamePk": 776691,
+              "gameType": "R",
+              "season": "2025",
+              "gameDate": "2025-08-19T18:20:00Z",
+              "officialDate": "2025-08-19",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 4,
+                  "team": {
+                    "id": 158,
+                    "name": "Milwaukee Brewers"
+                  }
+                },
+                "home": {
+                  "score": 6,
+                  "team": {
+                    "id": 112,
+                    "name": "Chicago Cubs"
+                  }
+                }
+              },
+              "venue": {
+                "id": 17,
+                "name": "Wrigley Field"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "S"
+            }
+          ]
+        },
+        {
+          "date": "2025-09-30",
+          "games": [
+            {
+              "gamePk": 813072,
+              "gameType": "F",
+              "season": "2025",
+              "gameDate": "2025-09-30T17:08:00Z",
+              "officialDate": "2025-09-30",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 2,
+                  "team": {
+                    "id": 116,
+                    "name": "Detroit Tigers"
+                  }
+                },
+                "home": {
+                  "score": 1,
+                  "team": {
+                    "id": 114,
+                    "name": "Cleveland Guardians"
+                  }
+                }
+              },
+              "venue": {
+                "id": 5,
+                "name": "Progressive Field"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-10-04",
+          "games": [
+            {
+              "gamePk": 813047,
+              "gameType": "D",
+              "season": "2025",
+              "gameDate": "2025-10-04T18:08:00Z",
+              "officialDate": "2025-10-04",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 3,
+                  "team": {
+                    "id": 112,
+                    "name": "Chicago Cubs"
+                  }
+                },
+                "home": {
+                  "score": 9,
+                  "team": {
+                    "id": 158,
+                    "name": "Milwaukee Brewers"
+                  }
+                }
+              },
+              "venue": {
+                "id": 32,
+                "name": "American Family Field"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-10-12",
+          "games": [
+            {
+              "gamePk": 813040,
+              "gameType": "L",
+              "season": "2025",
+              "gameDate": "2025-10-13T00:03:00Z",
+              "officialDate": "2025-10-12",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 3,
+                  "team": {
+                    "id": 136,
+                    "name": "Seattle Mariners"
+                  }
+                },
+                "home": {
+                  "score": 1,
+                  "team": {
+                    "id": 141,
+                    "name": "Toronto Blue Jays"
+                  }
+                }
+              },
+              "venue": {
+                "id": 14,
+                "name": "Rogers Centre"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2025-11-01",
+          "games": [
+            {
+              "gamePk": 813024,
+              "gameType": "W",
+              "season": "2025",
+              "gameDate": "2025-11-02T00:00:00Z",
+              "officialDate": "2025-11-01",
+              "status": {
+                "abstractGameState": "Final",
+                "codedGameState": "F",
+                "detailedState": "Final",
+                "statusCode": "F",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 5,
+                  "team": {
+                    "id": 119,
+                    "name": "Los Angeles Dodgers"
+                  }
+                },
+                "home": {
+                  "score": 4,
+                  "team": {
+                    "id": 141,
+                    "name": "Toronto Blue Jays"
+                  }
+                }
+              },
+              "venue": {
+                "id": 14,
+                "name": "Rogers Centre"
+              },
+              "isTie": false,
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dates": [
+        {
+          "date": "2026-05-15",
+          "games": [
+            {
+              "gamePk": 900005,
+              "gameType": "R",
+              "season": "2026",
+              "gameDate": "2026-05-15T19:10:00Z",
+              "officialDate": "2026-05-15",
+              "status": {
+                "abstractGameState": "Live",
+                "codedGameState": "U",
+                "detailedState": "Suspended: Rain",
+                "statusCode": "UR",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "score": 2,
+                  "team": {
+                    "id": 117,
+                    "name": "Houston Astros"
+                  }
+                },
+                "home": {
+                  "score": 1,
+                  "team": {
+                    "id": 115,
+                    "name": "Colorado Rockies"
+                  }
+                }
+              },
+              "venue": {
+                "id": 19,
+                "name": "Coors Field"
+              },
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2026-05-16",
+          "games": [
+            {
+              "gamePk": 900005,
+              "gameType": "R",
+              "season": "2026",
+              "gameDate": "2026-05-16T17:10:00Z",
+              "officialDate": "2026-05-15",
+              "status": {
+                "abstractGameState": "Preview",
+                "codedGameState": "S",
+                "detailedState": "Scheduled",
+                "statusCode": "S",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "team": {
+                    "id": 117,
+                    "name": "Houston Astros"
+                  }
+                },
+                "home": {
+                  "team": {
+                    "id": 115,
+                    "name": "Colorado Rockies"
+                  }
+                }
+              },
+              "venue": {
+                "id": 19,
+                "name": "Coors Field"
+              },
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        },
+        {
+          "date": "2026-09-27",
+          "games": [
+            {
+              "gamePk": 900006,
+              "gameType": "R",
+              "season": "2026",
+              "gameDate": "2026-09-27T19:10:00Z",
+              "officialDate": "2026-09-27",
+              "status": {
+                "abstractGameState": "Preview",
+                "codedGameState": "S",
+                "detailedState": "Scheduled",
+                "statusCode": "S",
+                "startTimeTBD": false
+              },
+              "teams": {
+                "away": {
+                  "team": {
+                    "id": 118,
+                    "name": "Kansas City Royals"
+                  }
+                },
+                "home": {
+                  "team": {
+                    "id": 142,
+                    "name": "Minnesota Twins"
+                  }
+                }
+              },
+              "venue": {
+                "id": 3312,
+                "name": "Target Field"
+              },
+              "gameNumber": 1,
+              "doubleHeader": "N"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": [
+    {
+      "id": "900013",
+      "league": "mlb",
+      "season": 2004,
+      "start_time_utc": "2004-06-02T02:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "LAA",
+      "away_team": "BOS",
+      "home_source_id": "108",
+      "away_source_id": "111",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "900011",
+      "league": "mlb",
+      "season": 2004,
+      "start_time_utc": "2004-06-15T23:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "WSH",
+      "away_team": "MIN",
+      "home_source_id": "120",
+      "away_source_id": "142",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "900014",
+      "league": "mlb",
+      "season": 2005,
+      "start_time_utc": "2005-06-01T23:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "CWS",
+      "away_team": "LAA",
+      "home_source_id": "145",
+      "away_source_id": "108",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "900012",
+      "league": "mlb",
+      "season": 2005,
+      "start_time_utc": "2005-06-18T00:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "TEX",
+      "away_team": "WSH",
+      "home_source_id": "140",
+      "away_source_id": "120",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "900017",
+      "league": "mlb",
+      "season": 2007,
+      "start_time_utc": "2007-06-01T23:10:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "TB",
+      "away_team": "KC",
+      "home_source_id": "139",
+      "away_source_id": "118",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "900018",
+      "league": "mlb",
+      "season": 2008,
+      "start_time_utc": "2008-06-03T23:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "BOS",
+      "away_team": "TB",
+      "home_source_id": "111",
+      "away_source_id": "139",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "900019",
+      "league": "mlb",
+      "season": 2011,
+      "start_time_utc": "2011-06-03T23:10:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "MIA",
+      "away_team": "MIL",
+      "home_source_id": "146",
+      "away_source_id": "158",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "900020",
+      "league": "mlb",
+      "season": 2012,
+      "start_time_utc": "2012-06-01T23:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "PHI",
+      "away_team": "MIA",
+      "home_source_id": "143",
+      "away_source_id": "146",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "900015",
+      "league": "mlb",
+      "season": 2015,
+      "start_time_utc": "2015-06-16T02:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "LAA",
+      "away_team": "AZ",
+      "home_source_id": "108",
+      "away_source_id": "109",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "900016",
+      "league": "mlb",
+      "season": 2016,
+      "start_time_utc": "2016-06-03T23:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "PIT",
+      "away_team": "LAA",
+      "home_source_id": "134",
+      "away_source_id": "108",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "449244",
+      "league": "mlb",
+      "season": 2016,
+      "start_time_utc": "2016-09-29T23:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "PIT",
+      "away_team": "CHC",
+      "home_source_id": "134",
+      "away_source_id": "112",
+      "neutral": false,
+      "result": "tie"
+    },
+    {
+      "id": "630901",
+      "league": "mlb",
+      "season": 2020,
+      "start_time_utc": "2020-08-11T22:37:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "TOR",
+      "away_team": "MIA",
+      "home_source_id": "141",
+      "away_source_id": "146",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "900021",
+      "league": "mlb",
+      "season": 2021,
+      "start_time_utc": "2021-06-01T22:10:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "CLE",
+      "away_team": "CWS",
+      "home_source_id": "114",
+      "away_source_id": "145",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "900022",
+      "league": "mlb",
+      "season": 2022,
+      "start_time_utc": "2022-06-03T23:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "BAL",
+      "away_team": "CLE",
+      "home_source_id": "110",
+      "away_source_id": "114",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "900023",
+      "league": "mlb",
+      "season": 2024,
+      "start_time_utc": "2024-06-05T01:40:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "ATH",
+      "away_team": "SEA",
+      "home_source_id": "133",
+      "away_source_id": "136",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "778563",
+      "league": "mlb",
+      "season": 2025,
+      "start_time_utc": "2025-03-18T10:10:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "CHC",
+      "away_team": "LAD",
+      "home_source_id": "112",
+      "away_source_id": "119",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "778370",
+      "league": "mlb",
+      "season": 2025,
+      "start_time_utc": "2025-04-11T23:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "NYY",
+      "away_team": "SF",
+      "home_source_id": "147",
+      "away_source_id": "137",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "900004",
+      "league": "mlb",
+      "season": 2025,
+      "start_time_utc": "2025-05-11T17:35:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "BAL",
+      "away_team": "BOS",
+      "home_source_id": "110",
+      "away_source_id": "111",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "900024",
+      "league": "mlb",
+      "season": 2025,
+      "start_time_utc": "2025-06-01T17:37:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "TOR",
+      "away_team": "ATH",
+      "home_source_id": "141",
+      "away_source_id": "133",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "776907",
+      "league": "mlb",
+      "season": 2025,
+      "start_time_utc": "2025-08-03T17:05:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "CIN",
+      "away_team": "ATL",
+      "home_source_id": "113",
+      "away_source_id": "144",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "776691",
+      "league": "mlb",
+      "season": 2025,
+      "start_time_utc": "2025-08-19T18:20:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "CHC",
+      "away_team": "MIL",
+      "home_source_id": "112",
+      "away_source_id": "158",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "813072",
+      "league": "mlb",
+      "season": 2025,
+      "start_time_utc": "2025-09-30T17:08:00Z",
+      "phase": "postseason",
+      "round_label": "F",
+      "round": 2,
+      "home_team": "CLE",
+      "away_team": "DET",
+      "home_source_id": "114",
+      "away_source_id": "116",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "813047",
+      "league": "mlb",
+      "season": 2025,
+      "start_time_utc": "2025-10-04T18:08:00Z",
+      "phase": "postseason",
+      "round_label": "D",
+      "round": 3,
+      "home_team": "MIL",
+      "away_team": "CHC",
+      "home_source_id": "158",
+      "away_source_id": "112",
+      "neutral": false,
+      "result": "home_win"
+    },
+    {
+      "id": "813040",
+      "league": "mlb",
+      "season": 2025,
+      "start_time_utc": "2025-10-13T00:03:00Z",
+      "phase": "postseason",
+      "round_label": "L",
+      "round": 4,
+      "home_team": "TOR",
+      "away_team": "SEA",
+      "home_source_id": "141",
+      "away_source_id": "136",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "813024",
+      "league": "mlb",
+      "season": 2025,
+      "start_time_utc": "2025-11-02T00:00:00Z",
+      "phase": "postseason",
+      "round_label": "W",
+      "round": 5,
+      "home_team": "TOR",
+      "away_team": "LAD",
+      "home_source_id": "141",
+      "away_source_id": "119",
+      "neutral": false,
+      "result": "away_win"
+    },
+    {
+      "id": "900005",
+      "league": "mlb",
+      "season": 2026,
+      "start_time_utc": "2026-05-16T17:10:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "COL",
+      "away_team": "HOU",
+      "home_source_id": "115",
+      "away_source_id": "117",
+      "neutral": false,
+      "result": null
+    },
+    {
+      "id": "900006",
+      "league": "mlb",
+      "season": 2026,
+      "start_time_utc": "2026-09-27T19:10:00Z",
+      "phase": "regular",
+      "round_label": "R",
+      "round": 1,
+      "home_team": "MIN",
+      "away_team": "KC",
+      "home_source_id": "142",
+      "away_source_id": "118",
+      "neutral": false,
+      "result": null
+    }
+  ]
+}

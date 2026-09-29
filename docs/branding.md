@@ -139,7 +139,7 @@ the user selected Rally Row as the final brand name on September 28, 2026.
 ## Interview decisions
 
 - Audience: everyday sports fans and pool players who want straightforward help choosing winners.
-- Scope: NFL today, with other sports leagues planned.
+- Scope: NFL and MLB, with other sports leagues planned.
 - Personality: lively, social, and competitive; a game-day clubhouse.
 - Betting is not the focus.
 - Style: modern sports broadcast, with bold typography and crisp graphics.

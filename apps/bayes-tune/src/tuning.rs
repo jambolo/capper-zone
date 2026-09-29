@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use rating_core::{
-    BayesianSettings, EloSeed, EloSettings, Game, GameFile, LeagueConfig, Outcome,
+    BayesianGrid, BayesianSettings, EloSeed, EloSettings, Game, GameFile, LeagueConfig, Outcome,
     bayesian::{Probabilities, TieHistory, fit_posterior},
     build_seed,
     tuning::{Split, validate},
@@ -49,6 +49,20 @@ impl Grid {
             prior_sd_elo: vec![50.0, 75.0, 100.0, 150.0, 200.0, 300.0],
             tie_prior_games: vec![10.0, 30.0, 100.0, 300.0, 1000.0],
             tie_prior_rate: vec![0.001, 0.0025, 0.005, 0.01],
+        }
+    }
+    /// The league's configured starting grid if present, else the default coarse grid, with its source label.
+    fn starting(configured: Option<&BayesianGrid>) -> (Self, &'static str) {
+        match configured {
+            Some(g) => (
+                Self {
+                    prior_sd_elo: g.prior_sd_elo.clone(),
+                    tie_prior_games: g.tie_prior_games.clone(),
+                    tie_prior_rate: g.tie_prior_rate.clone(),
+                },
+                "config",
+            ),
+            None => (Self::coarse(), "default"),
         }
     }
     fn candidates(&self) -> Vec<Parameters> {
@@ -362,6 +376,51 @@ fn compare(baseline: Evaluation, selected: Evaluation) -> Comparison {
     }
 }
 
+/// Inclusive `[min, max]` of each parameter over every evaluated candidate.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct Ranges {
+    prior_sd_elo: [f64; 2],
+    tie_prior_games: [f64; 2],
+    tie_prior_rate: [f64; 2],
+}
+
+impl Ranges {
+    fn of(evaluated: &[Parameters]) -> Self {
+        let range = |value: fn(&Parameters) -> f64| {
+            evaluated
+                .iter()
+                .map(value)
+                .fold([f64::INFINITY, f64::NEG_INFINITY], |[lo, hi], v| [lo.min(v), hi.max(v)])
+        };
+        Self {
+            prior_sd_elo: range(|p| p.prior_sd_elo),
+            tie_prior_games: range(|p| p.tie_prior_games),
+            tie_prior_rate: range(|p| p.tie_prior_rate),
+        }
+    }
+    /// Parameter names, in report key order, whose selected value equals its evaluated minimum or maximum.
+    fn boundary(&self, selected: Parameters) -> Vec<&'static str> {
+        [
+            ("prior_sd_elo", selected.prior_sd_elo, self.prior_sd_elo),
+            ("tie_prior_games", selected.tie_prior_games, self.tie_prior_games),
+            ("tie_prior_rate", selected.tie_prior_rate, self.tie_prior_rate),
+        ]
+        .into_iter()
+        .filter(|&(_, value, [lo, hi])| value == lo || value == hi)
+        .map(|(name, _, _)| name)
+        .collect()
+    }
+}
+
+fn boundary_note(names: &[&str]) -> Option<String> {
+    (!names.is_empty()).then(|| {
+        format!(
+            "Selected parameters lie on a searched boundary ({}); extend tuning_grids in the league configuration and rerun before adopting.",
+            names.join(", ")
+        )
+    })
+}
+
 #[derive(Serialize)]
 pub struct CandidateSummary {
     parameters: Parameters,
@@ -371,6 +430,7 @@ pub struct CandidateSummary {
 
 #[derive(Serialize)]
 pub struct SearchReport {
+    grid_source: &'static str,
     coarse_grid: Grid,
     refinement_centers: Vec<Parameters>,
     refinement_multipliers: [f64; 3],
@@ -378,6 +438,8 @@ pub struct SearchReport {
     near_best_candidates: usize,
     minimum_log_loss_parameters: Parameters,
     top_candidates: Vec<CandidateSummary>,
+    evaluated_ranges: Ranges,
+    selected_on_boundary: Vec<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -395,7 +457,7 @@ pub struct Report {
     search: SearchReport,
     tuning: Comparison,
     holdout: Comparison,
-    notes: Vec<&'static str>,
+    notes: Vec<String>,
 }
 
 pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: String, history_sha256: String) -> Result<Report> {
@@ -407,14 +469,17 @@ pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: 
         split.tune_start, split.tune_end
     );
     let mut prepared = prepare(history, cfg, split.tune_start, split.tune_end)?;
+    let (coarse_grid, grid_source) = Grid::starting(cfg.tuning_grids.as_ref().and_then(|g| g.bayesian.as_ref()));
     let mut candidates = Vec::new();
     add_candidates(&mut candidates, vec![baseline], &mut prepared, cfg)?;
-    add_candidates(&mut candidates, Grid::coarse().candidates(), &mut prepared, cfg)?;
+    add_candidates(&mut candidates, coarse_grid.candidates(), &mut prepared, cfg)?;
     let centers: Vec<_> = candidates.iter().take(3).map(|c| c.parameters).collect();
     for &center in &centers {
         add_candidates(&mut candidates, Grid::around(center).candidates(), &mut prepared, cfg)?;
     }
     let (selected, near_best_candidates) = select(&candidates, baseline);
+    let evaluated_ranges = Ranges::of(&candidates.iter().map(|c| c.parameters).collect::<Vec<_>>());
+    let selected_on_boundary = evaluated_ranges.boundary(selected.parameters);
     let baseline_tuning = &candidates.iter().find(|c| c.parameters == baseline).unwrap().evaluation;
     eprintln!(
         "Selected from {} candidates; evaluating held-out seasons {}–{}...",
@@ -429,6 +494,7 @@ pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: 
     } else {
         evaluate(&mut heldout, cfg, selected.parameters)?
     };
+    let boundary = boundary_note(&selected_on_boundary);
     Ok(Report {
         run_at,
         league: cfg.id.clone(),
@@ -441,7 +507,8 @@ pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: 
         baseline_parameters: baseline,
         selected_parameters: selected.parameters,
         search: SearchReport {
-            coarse_grid: Grid::coarse(),
+            grid_source,
+            coarse_grid,
             refinement_centers: centers,
             refinement_multipliers: [1.0 / std::f64::consts::SQRT_2, 1.0, std::f64::consts::SQRT_2],
             candidates_evaluated: candidates.len(),
@@ -456,10 +523,12 @@ pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: 
                     mean_season_brier: c.evaluation.mean_season_brier,
                 })
                 .collect(),
+            evaluated_ranges,
+            selected_on_boundary,
         },
         tuning: compare(baseline_tuning.clone(), selected.evaluation.clone()),
         holdout: compare(baseline_holdout, selected_holdout),
-        notes: vec![
+        notes: [
             "Offline: configuration and history are read once; published seeds are unused; inputs are never changed.",
             "Tie weight is reestimated for each season from earlier history and remains fixed within that season. Postseason follows the configured tie rules.",
             "Rare ties can leave tie smoothing weakly identified. The conservative selection is a stability heuristic, not a significance test.",
@@ -469,7 +538,11 @@ pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: 
             "Positive baseline-minus-selected log loss indicates improvement; paired-season standard errors are descriptive and seasons may be dependent.",
             "Only the frozen selection and current settings are evaluated on the holdout. Earlier holdout outcomes can train later holdout predictions, but never change selected parameters.",
             "Holdout validity also requires that these seasons did not influence Elo settings or previous search choices. Repeated search changes after inspecting holdout scores invalidate it.",
-        ],
+        ]
+        .into_iter()
+        .map(String::from)
+        .chain(boundary)
+        .collect(),
     })
 }
 
@@ -575,5 +648,52 @@ mod tests {
         assert_eq!(select(&candidates, baseline).0.parameters.prior_sd_elo, 100.0);
         assert_eq!(Grid::coarse().candidates().len(), 120);
         assert!(Grid::coarse().candidates().contains(&baseline));
+    }
+
+    #[test]
+    fn default_starting_grid_keeps_the_previous_constants_and_a_configured_grid_replaces_it() {
+        let (grid, source) = Grid::starting(None);
+        assert_eq!(source, "default");
+        assert_eq!(grid.prior_sd_elo, [50.0, 75.0, 100.0, 150.0, 200.0, 300.0]);
+        assert_eq!(grid.tie_prior_games, [10.0, 30.0, 100.0, 300.0, 1000.0]);
+        assert_eq!(grid.tie_prior_rate, [0.001, 0.0025, 0.005, 0.01]);
+        assert_eq!(grid.candidates().len(), 120);
+        let configured = BayesianGrid {
+            prior_sd_elo: vec![60.0, 120.0],
+            tie_prior_games: vec![20.0, 40.0, 80.0],
+            tie_prior_rate: vec![0.002, 0.004],
+        };
+        let (grid, source) = Grid::starting(Some(&configured));
+        assert_eq!(source, "config");
+        assert_eq!(grid.prior_sd_elo, configured.prior_sd_elo);
+        assert_eq!(grid.tie_prior_games, configured.tie_prior_games);
+        assert_eq!(grid.tie_prior_rate, configured.tie_prior_rate);
+        assert_eq!(grid.candidates().len(), 12);
+    }
+
+    #[test]
+    fn boundary_detection_flags_minimum_and_maximum_and_ignores_interior_values() {
+        let p = |prior_sd_elo, tie_prior_games, tie_prior_rate| Parameters {
+            prior_sd_elo,
+            tie_prior_games,
+            tie_prior_rate,
+        };
+        let ranges = Ranges::of(&[p(100.0, 30.0, 0.005), p(50.0, 100.0, 0.001), p(200.0, 10.0, 0.01)]);
+        assert_eq!(
+            ranges,
+            Ranges {
+                prior_sd_elo: [50.0, 200.0],
+                tie_prior_games: [10.0, 100.0],
+                tie_prior_rate: [0.001, 0.01],
+            }
+        );
+        assert!(ranges.boundary(p(100.0, 30.0, 0.005)).is_empty());
+        assert_eq!(ranges.boundary(p(50.0, 30.0, 0.01)), ["prior_sd_elo", "tie_prior_rate"]);
+        assert_eq!(ranges.boundary(p(100.0, 10.0, 0.001)), ["tie_prior_games", "tie_prior_rate"]);
+        assert_eq!(boundary_note(&[]), None);
+        assert_eq!(
+            boundary_note(&["tie_prior_games"]).unwrap(),
+            "Selected parameters lie on a searched boundary (tie_prior_games); extend tuning_grids in the league configuration and rerun before adopting."
+        );
     }
 }

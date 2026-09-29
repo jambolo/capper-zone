@@ -1,7 +1,7 @@
 use anyhow::Result;
 pub use rating_core::tuning::Split;
 use rating_core::tuning::validate;
-use rating_core::{Audit, EloSettings, GameFile, LeagueConfig, replay_elo};
+use rating_core::{Audit, EloGrid, EloSettings, GameFile, LeagueConfig, replay_elo};
 use serde::Serialize;
 use std::collections::BTreeMap;
 
@@ -97,6 +97,21 @@ impl Grid {
         }
     }
 
+    /// The league's configured starting grid if present, else the default coarse grid, with its source label.
+    fn starting(configured: Option<&EloGrid>) -> (Self, &'static str) {
+        match configured {
+            Some(g) => (
+                Self {
+                    k: g.k.clone(),
+                    home_advantage: g.home_advantage.clone(),
+                    offseason_regression: g.offseason_regression.clone(),
+                },
+                "config",
+            ),
+            None => (Self::coarse(), "default"),
+        }
+    }
+
     fn candidates(&self) -> Vec<Parameters> {
         let mut result = Vec::new();
         for &k in &self.k {
@@ -134,6 +149,56 @@ impl Grid {
     }
 }
 
+/// Inclusive `[min, max]` of each parameter over every evaluated candidate.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct Ranges {
+    pub k: [f64; 2],
+    pub home_advantage: [f64; 2],
+    pub offseason_regression: [f64; 2],
+}
+
+impl Ranges {
+    fn of(evaluated: &[Parameters]) -> Self {
+        let range = |value: fn(&Parameters) -> f64| {
+            evaluated
+                .iter()
+                .map(value)
+                .fold([f64::INFINITY, f64::NEG_INFINITY], |[lo, hi], v| [lo.min(v), hi.max(v)])
+        };
+        Self {
+            k: range(|p| p.k),
+            home_advantage: range(|p| p.home_advantage),
+            offseason_regression: range(|p| p.offseason_regression),
+        }
+    }
+
+    /// Parameter names, in report key order, whose selected value equals its evaluated minimum or maximum.
+    fn boundary(&self, selected: Parameters) -> Vec<&'static str> {
+        [
+            ("k", selected.k, self.k),
+            ("home_advantage", selected.home_advantage, self.home_advantage),
+            (
+                "offseason_regression",
+                selected.offseason_regression,
+                self.offseason_regression,
+            ),
+        ]
+        .into_iter()
+        .filter(|&(_, value, [lo, hi])| value == lo || value == hi)
+        .map(|(name, _, _)| name)
+        .collect()
+    }
+}
+
+fn boundary_note(names: &[&str]) -> Option<String> {
+    (!names.is_empty()).then(|| {
+        format!(
+            "Selected parameters lie on a searched boundary ({}); extend tuning_grids in the league configuration and rerun before adopting.",
+            names.join(", ")
+        )
+    })
+}
+
 #[derive(Serialize)]
 pub struct CandidateSummary {
     pub parameters: Parameters,
@@ -142,6 +207,7 @@ pub struct CandidateSummary {
 
 #[derive(Serialize)]
 pub struct SearchReport {
+    pub grid_source: &'static str,
     pub coarse_grid: Grid,
     pub expanded_grid: Grid,
     pub expansion_rounds: usize,
@@ -150,6 +216,8 @@ pub struct SearchReport {
     pub near_best_candidates: usize,
     pub minimum_mse_parameters: Parameters,
     pub top_candidates: Vec<CandidateSummary>,
+    pub evaluated_ranges: Ranges,
+    pub selected_on_boundary: Vec<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -315,7 +383,8 @@ pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: 
     let run_at = chrono::Utc::now().to_rfc3339();
     validate(history, cfg, split)?;
     let baseline = Parameters::from_settings(&cfg.elo);
-    let mut grid = Grid::coarse();
+    let (mut grid, grid_source) = Grid::starting(cfg.tuning_grids.as_ref().and_then(|g| g.elo.as_ref()));
+    let coarse_grid = grid.clone();
     let mut candidates = Vec::new();
     eprintln!(
         "Searching Elo parameters using seasons {}–{} only...",
@@ -353,6 +422,8 @@ pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: 
         add_candidates(&mut candidates, local.candidates(), history, cfg, split)?;
     }
     let (selected, near_best_candidates) = select(&candidates, baseline);
+    let evaluated_ranges = Ranges::of(&candidates.iter().map(|c| c.parameters).collect::<Vec<_>>());
+    let selected_on_boundary = evaluated_ranges.boundary(selected.parameters);
     let baseline_tuning = &candidates.iter().find(|c| c.parameters == baseline).unwrap().evaluation;
     eprintln!(
         "Selected parameters from {} candidates; evaluating held-out seasons {}–{}...",
@@ -378,6 +449,7 @@ pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: 
     if boundary_limited {
         notes.push("The coarse minimum still touched an expandable boundary after four expansions; the search is bounded, not a global optimum guarantee.".into());
     }
+    notes.extend(boundary_note(&selected_on_boundary));
     Ok(Report {
         run_at,
         league: cfg.id.clone(),
@@ -391,7 +463,8 @@ pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: 
         baseline_parameters: baseline,
         selected_parameters: selected.parameters,
         search: SearchReport {
-            coarse_grid: Grid::coarse(),
+            grid_source,
+            coarse_grid,
             expanded_grid: grid,
             expansion_rounds,
             refinement_steps: steps,
@@ -406,6 +479,8 @@ pub fn run(history: &GameFile, cfg: &LeagueConfig, split: Split, config_sha256: 
                     mean_season_mse: c.evaluation.mean_season_mse,
                 })
                 .collect(),
+            evaluated_ranges,
+            selected_on_boundary,
         },
         tuning: compare(baseline_tuning.clone(), selected.evaluation.clone()),
         holdout: compare(baseline_holdout, selected_holdout),
@@ -487,5 +562,52 @@ mod tests {
         assert_eq!(grid.k[0], 5.0);
         assert_eq!(*grid.home_advantage.last().unwrap(), 95.0);
         assert_eq!(*grid.offseason_regression.last().unwrap(), 1.0);
+    }
+
+    #[test]
+    fn default_starting_grid_keeps_the_previous_constants_and_a_configured_grid_replaces_it() {
+        let (grid, source) = Grid::starting(None);
+        assert_eq!(source, "default");
+        assert_eq!(grid.k, [10.0, 15.0, 20.0, 30.0, 40.0]);
+        assert_eq!(grid.home_advantage, [0.0, 25.0, 40.0, 55.0, 70.0]);
+        assert_eq!(grid.offseason_regression, [0.0, 0.15, 1.0 / 3.0, 0.5, 0.75]);
+        assert_eq!(grid.candidates().len(), 125);
+        let configured = EloGrid {
+            k: vec![2.0, 4.0, 8.0],
+            home_advantage: vec![12.0, 24.0],
+            offseason_regression: vec![0.25, 0.5],
+        };
+        let (grid, source) = Grid::starting(Some(&configured));
+        assert_eq!(source, "config");
+        assert_eq!(grid.k, configured.k);
+        assert_eq!(grid.home_advantage, configured.home_advantage);
+        assert_eq!(grid.offseason_regression, configured.offseason_regression);
+        assert_eq!(grid.candidates().len(), 12);
+    }
+
+    #[test]
+    fn boundary_detection_flags_minimum_and_maximum_and_ignores_interior_values() {
+        let p = |k, home_advantage, offseason_regression| Parameters {
+            k,
+            home_advantage,
+            offseason_regression,
+        };
+        let ranges = Ranges::of(&[p(10.0, 40.0, 0.5), p(20.0, 0.0, 0.25), p(5.0, 70.0, 1.0)]);
+        assert_eq!(
+            ranges,
+            Ranges {
+                k: [5.0, 20.0],
+                home_advantage: [0.0, 70.0],
+                offseason_regression: [0.25, 1.0],
+            }
+        );
+        assert!(ranges.boundary(p(10.0, 40.0, 0.5)).is_empty());
+        assert_eq!(ranges.boundary(p(5.0, 40.0, 1.0)), ["k", "offseason_regression"]);
+        assert_eq!(ranges.boundary(p(20.0, 0.0, 0.5)), ["k", "home_advantage"]);
+        assert_eq!(boundary_note(&[]), None);
+        assert_eq!(
+            boundary_note(&["k", "offseason_regression"]).unwrap(),
+            "Selected parameters lie on a searched boundary (k, offseason_regression); extend tuning_grids in the league configuration and rerun before adopting."
+        );
     }
 }

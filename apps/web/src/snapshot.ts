@@ -1,11 +1,12 @@
 import { z } from 'zod';
-import { configSchema, gameFileSchema, gameSchema, seedSchema, validateGames } from './contracts.ts';
+import { configSchema, displaySchema, gameFileSchema, gameSchema, seedSchema, validateGames } from './contracts.ts';
 import type { Posterior } from './model.ts';
 import type { PublicState } from './service.ts';
 import type { Store } from './storage.ts';
 import { APP_VERSION } from './version.ts';
 
-export const snapshotKey = 'game-results-prediction:nfl:model-v1';
+/** Storage key of a league's saved model snapshot. */
+export const snapshotKey = (league: string) => `game-results-prediction:${league}:model-v1`;
 export type ModelSnapshot = {
   app_version: string;
   file: z.infer<typeof gameFileSchema>;
@@ -53,7 +54,10 @@ const snapshotSchema = z.object({
     team_history: configSchema.shape.teams,
     source: z.string(),
     result_policy: z.string(),
+    result_policy_summary: z.string(),
     history_start: z.number().int(),
+    display: displaySchema,
+    ties_allowed_in: configSchema.shape.ties_allowed_in,
     teams: z.array(
       z.object({
         id: z.string(),
@@ -71,14 +75,15 @@ const snapshotSchema = z.object({
   }),
 });
 
-export function readSnapshot(store: Store | null): ModelSnapshot | null {
+export function readSnapshot(store: Store | null, league: string): ModelSnapshot | null {
   try {
-    const raw = store?.getItem(snapshotKey);
+    const raw = store?.getItem(snapshotKey(league));
     if (!raw) return null;
     const snapshot = snapshotSchema.parse(JSON.parse(raw));
     const { model, file, state } = snapshot;
     const size = model.ids.length;
     if (
+      model.config.id !== league ||
       new Set(model.ids).size !== size ||
       model.means.length !== size ||
       model.covariance.length !== size ||
@@ -104,7 +109,7 @@ export function readSnapshot(store: Store | null): ModelSnapshot | null {
 
 export function writeSnapshot(store: Store | null, snapshot: ModelSnapshot): void {
   try {
-    store?.setItem(snapshotKey, JSON.stringify(snapshot));
+    store?.setItem(snapshotKey(snapshot.file.league), JSON.stringify(snapshot));
   } catch {
     // Storage failure must not discard a successfully fitted model.
   }

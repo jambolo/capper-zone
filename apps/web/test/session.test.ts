@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { Posterior } from '../src/model.ts';
+import { indexedDbPersistence } from '../src/persistence.ts';
 import { PredictionService } from '../src/service.ts';
 import { memoryStore } from '../src/storage.ts';
 import { readSnapshot, snapshotKey } from '../src/snapshot.ts';
 import type { SessionView } from '../src/session.ts';
 import type { RefreshMessage } from '../src/refresh-worker.ts';
+import { fakeIndexedDb } from './fake-indexeddb.ts';
 import { config, configHash, game, historyBytes, seed } from './helpers.ts';
 
 class BackgroundWorker {
@@ -25,8 +28,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function setup() {
+/** A Store holding saved entries, for readSnapshot. */
+function storeOf(entries: Record<string, string>) {
   const store = memoryStore();
+  for (const [key, value] of Object.entries(entries)) store.setItem(key, value);
+  return store;
+}
+
+/** A session whose persistence holds the built current-season cache and, unless `withSnapshot` is false, snapshot. */
+async function setup({ withSnapshot = true } = {}) {
+  const built = memoryStore();
   vi.stubGlobal('fetch', (url: string) =>
     Promise.resolve(new Response(url.endsWith('history.json') ? historyBytes : JSON.stringify(seed()))),
   );
@@ -35,35 +46,48 @@ async function setup() {
     configHash,
     dataBase: 'https://test/data',
     season: 2026,
-    store,
+    store: built,
     fetchSource: async () => JSON.stringify({ schema_version: 2, league: 'nfl', games: [game()] }),
   });
   await service.initialize();
-  const snapshot = readSnapshot(store)!;
+  const snapshot = readSnapshot(built, 'nfl')!;
   expect(snapshot).not.toBeNull();
+  const persistence = indexedDbPersistence(fakeIndexedDb().factory);
+  const keys = built.keys().filter((key) => withSnapshot || key !== snapshotKey('nfl'));
+  await persistence.save(Object.fromEntries(keys.map((key) => [key, built.getItem(key)!])));
+  // The small store holds only the refresh cooldown.
+  const store = memoryStore();
   const worker = new BackgroundWorker();
-  const createWorker = vi.fn(() => worker as unknown as Worker);
   const changes: SessionView[] = [];
+  const modelsAtWorkerStart: (Posterior | null)[] = [];
+  const createWorker = vi.fn(() => {
+    modelsAtWorkerStart.push(changes.at(-1)?.model ?? null);
+    return worker as unknown as Worker;
+  });
   const options = {
-    configUrl: 'https://test/config/nfl.json',
+    league: 'nfl',
+    configBase: 'https://test/config',
     dataBase: 'https://test/data',
     store,
+    persistence,
     createWorker,
     locks: null,
     onChange: (view: SessionView) => changes.push(view),
   };
   const session = await import('../src/session.ts');
-  return { ...session, options, store, snapshot, worker, changes, createWorker };
+  const saved = () => persistence.load('nfl');
+  return { ...session, options, store, persistence, saved, snapshot, worker, changes, createWorker, modelsAtWorkerStart };
 }
 
 it('shows the cached model before starting a worker and keeps it visible during rebuilding', async () => {
-  const { startSession, options, snapshot, worker, createWorker, changes, store, attemptKey } = await setup();
+  const { startSession, options, snapshot, worker, createWorker, changes, store, attemptKey, modelsAtWorkerStart } = await setup();
   const stop = startSession(options);
-  expect(changes.at(-1)?.model).toEqual(snapshot.model);
   expect(createWorker).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(0);
+  expect(changes[0]).toMatchObject({ model: snapshot.model, state: { ...snapshot.state, cached: true } });
   expect(createWorker).toHaveBeenCalledOnce();
-  expect(Number(store.getItem(attemptKey))).toBe(Date.now());
+  expect(modelsAtWorkerStart).toEqual([snapshot.model]);
+  expect(Number(store.getItem(attemptKey('nfl')))).toBe(Date.now());
   worker.send({ type: 'progress', phase: 'rebuilding' });
   expect(changes.at(-1)).toMatchObject({ phase: 'rebuilding', model: snapshot.model, state: { status: 'ready' } });
   worker.send({ type: 'complete', state: { ...snapshot.state, cached: false }, model: snapshot.model, cache: {} });
@@ -77,14 +101,15 @@ it.each([undefined, '0.0.0', '999.0.0', 42])(
   async (version) => {
     const f = await setup();
     const saved = JSON.stringify({ ...f.snapshot, app_version: version });
-    f.store.setItem(snapshotKey, saved);
+    await f.persistence.save({ [snapshotKey('nfl')]: saved });
     const stop = f.startSession(f.options);
     expect(f.changes.some((view) => view.model !== null)).toBe(false);
     await vi.advanceTimersByTimeAsync(0);
+    expect(f.changes.some((view) => view.model !== null)).toBe(false);
     expect(f.changes.at(-1)).toMatchObject({ model: null, state: null, phase: 'checking' });
     f.worker.send({ type: 'error', error: 'offline' });
     expect(f.changes.at(-1)).toMatchObject({ model: null, state: null, phase: 'idle', error: 'offline' });
-    expect(f.store.getItem(snapshotKey)).toBe(saved);
+    expect((await f.saved())[snapshotKey('nfl')]).toBe(saved);
     stop();
   },
 );
@@ -92,8 +117,7 @@ it.each([undefined, '0.0.0', '999.0.0', 42])(
 it.each([true, false])(
   'checks the version of a snapshot published while waiting for the lock; compatible: %s',
   async (compatible) => {
-    const f = await setup();
-    f.store.removeItem(snapshotKey);
+    const f = await setup({ withSnapshot: false });
     const gate = Promise.withResolvers<void>();
     const locks = {
       request: vi.fn(async (_name: string, _options: LockOptions, callback: () => Promise<void>) => {
@@ -104,7 +128,10 @@ it.each([true, false])(
     const stop = f.startSession({ ...f.options, locks });
     await vi.advanceTimersByTimeAsync(0);
     expect(f.createWorker).not.toHaveBeenCalled();
-    f.store.setItem(snapshotKey, JSON.stringify({ ...f.snapshot, ...(compatible ? {} : { app_version: '0.0.0' }) }));
+    expect(f.changes.some((view) => view.model !== null)).toBe(false);
+    await f.persistence.save({
+      [snapshotKey('nfl')]: JSON.stringify({ ...f.snapshot, ...(compatible ? {} : { app_version: '0.0.0' }) }),
+    });
     gate.resolve();
     await vi.advanceTimersByTimeAsync(0);
     expect(f.createWorker).toHaveBeenCalledOnce();
@@ -136,18 +163,23 @@ it('defers work across a reload that interrupted the previous worker, then retri
 });
 
 it('does not poll after completing a check, and a rapid reload reuses the saved result', async () => {
-  const { startSession, options, worker, snapshot, createWorker, cooldownMs, changes } = await setup();
+  const { startSession, options, worker, snapshot, createWorker, cooldownMs, changes, saved } = await setup({
+    withSnapshot: false,
+  });
   const stop = startSession(options);
   await vi.advanceTimersByTimeAsync(0);
   worker.send({
     type: 'complete',
     state: snapshot.state,
     model: snapshot.model,
-    cache: { [snapshotKey]: JSON.stringify(snapshot) },
+    cache: { [snapshotKey('nfl')]: JSON.stringify(snapshot) },
   });
   stop();
+  expect((await saved())[snapshotKey('nfl')]).toBe(JSON.stringify(snapshot));
+  const reloadStart = changes.length;
   const stopReload = startSession(options);
   await vi.advanceTimersByTimeAsync(0);
+  expect(changes[reloadStart]).toMatchObject({ model: snapshot.model, state: { ...snapshot.state, cached: true } });
   expect(changes.at(-1)?.phase).toBe('waiting');
   expect(createWorker).toHaveBeenCalledOnce();
   await vi.advanceTimersByTimeAsync(cooldownMs);
@@ -173,7 +205,12 @@ it('rechecks the cache and cooldown after another tab releases the lock', async 
   await vi.advanceTimersByTimeAsync(0);
   expect(createWorker).toHaveBeenCalledOnce();
   const updated = { ...snapshot, state: { ...snapshot.state, refreshed_at: '2026-09-19T18:00:01.000Z' } };
-  worker.send({ type: 'complete', state: updated.state, model: updated.model, cache: { [snapshotKey]: JSON.stringify(updated) } });
+  worker.send({
+    type: 'complete',
+    state: updated.state,
+    model: updated.model,
+    cache: { [snapshotKey('nfl')]: JSON.stringify(updated) },
+  });
   await tail;
   expect(secondChanges.at(-1)?.state?.refreshed_at).toBe(updated.state.refreshed_at);
   expect(secondChanges.at(-1)?.phase).toBe('waiting');
@@ -184,7 +221,7 @@ it('rechecks the cache and cooldown after another tab releases the lock', async 
 });
 
 it('ignores stale worker messages after unmount and preserves saved results on worker failure', async () => {
-  const { startSession, options, worker, store, changes, snapshot } = await setup();
+  const { startSession, options, worker, saved, changes, snapshot } = await setup();
   const stop = startSession(options);
   await vi.advanceTimersByTimeAsync(0);
   worker.send({ type: 'error', error: 'offline' });
@@ -195,15 +232,20 @@ it('ignores stale worker messages after unmount and preserves saved results on w
   });
   stop();
   const count = changes.length;
-  worker.send({ type: 'complete', state: snapshot.state, model: snapshot.model, cache: { [snapshotKey]: 'broken' } });
+  const before = await saved();
+  worker.send({ type: 'complete', state: snapshot.state, model: snapshot.model, cache: { [snapshotKey('nfl')]: 'broken' } });
+  await vi.advanceTimersByTimeAsync(0);
   expect(changes).toHaveLength(count);
-  expect(readSnapshot(store)).not.toBeNull();
+  expect(await saved()).toEqual(before);
+  expect(readSnapshot(storeOf(await saved()), 'nfl')).not.toBeNull();
 });
 
 it('does not record a refresh during a development-mode mount immediately followed by cleanup', async () => {
   const { startSession, options, createWorker, store, attemptKey } = await setup();
   startSession(options)();
-  expect(store.getItem(attemptKey)).toBeNull();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(store.getItem(attemptKey('nfl'))).toBeNull();
+  expect(createWorker).not.toHaveBeenCalled();
   const stop = startSession(options);
   await vi.advanceTimersByTimeAsync(0);
   expect(createWorker).toHaveBeenCalledOnce();

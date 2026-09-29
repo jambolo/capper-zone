@@ -1,0 +1,654 @@
+{
+  "schema_version": 2,
+  "id": "mlb",
+  "name": "MLB",
+  "history_start": 1998,
+  "season_rollover_month": 1,
+  "source": {
+    "kind": "mlb-statsapi",
+    "url": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&season={season}&gameType=R,F,D,L,W"
+  },
+  "teams": [
+    {
+      "id": "ATH",
+      "name": "Athletics",
+      "location": "Sacramento",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": 2024,
+          "name": "Oakland Athletics",
+          "location": "Oakland",
+          "source_ids": [
+            "133"
+          ]
+        },
+        {
+          "from_season": 2025,
+          "through_season": null,
+          "name": "Athletics",
+          "location": "Sacramento",
+          "source_ids": [
+            "133"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ATL",
+      "name": "Atlanta Braves",
+      "location": "Atlanta",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Atlanta Braves",
+          "location": "Atlanta",
+          "source_ids": [
+            "144"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "AZ",
+      "name": "Arizona Diamondbacks",
+      "location": "Arizona",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Arizona Diamondbacks",
+          "location": "Arizona",
+          "source_ids": [
+            "109"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BAL",
+      "name": "Baltimore Orioles",
+      "location": "Baltimore",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Baltimore Orioles",
+          "location": "Baltimore",
+          "source_ids": [
+            "110"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BOS",
+      "name": "Boston Red Sox",
+      "location": "Boston",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Boston Red Sox",
+          "location": "Boston",
+          "source_ids": [
+            "111"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CHC",
+      "name": "Chicago Cubs",
+      "location": "Chicago",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Chicago Cubs",
+          "location": "Chicago",
+          "source_ids": [
+            "112"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CIN",
+      "name": "Cincinnati Reds",
+      "location": "Cincinnati",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Cincinnati Reds",
+          "location": "Cincinnati",
+          "source_ids": [
+            "113"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CLE",
+      "name": "Cleveland Guardians",
+      "location": "Cleveland",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": 2021,
+          "name": "Cleveland Indians",
+          "location": "Cleveland",
+          "source_ids": [
+            "114"
+          ]
+        },
+        {
+          "from_season": 2022,
+          "through_season": null,
+          "name": "Cleveland Guardians",
+          "location": "Cleveland",
+          "source_ids": [
+            "114"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "COL",
+      "name": "Colorado Rockies",
+      "location": "Colorado",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Colorado Rockies",
+          "location": "Colorado",
+          "source_ids": [
+            "115"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CWS",
+      "name": "Chicago White Sox",
+      "location": "Chicago",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Chicago White Sox",
+          "location": "Chicago",
+          "source_ids": [
+            "145"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DET",
+      "name": "Detroit Tigers",
+      "location": "Detroit",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Detroit Tigers",
+          "location": "Detroit",
+          "source_ids": [
+            "116"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "HOU",
+      "name": "Houston Astros",
+      "location": "Houston",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Houston Astros",
+          "location": "Houston",
+          "source_ids": [
+            "117"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "KC",
+      "name": "Kansas City Royals",
+      "location": "Kansas City",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Kansas City Royals",
+          "location": "Kansas City",
+          "source_ids": [
+            "118"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LAA",
+      "name": "Los Angeles Angels",
+      "location": "Los Angeles",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": 2004,
+          "name": "Anaheim Angels",
+          "location": "Anaheim",
+          "source_ids": [
+            "108"
+          ]
+        },
+        {
+          "from_season": 2005,
+          "through_season": 2015,
+          "name": "Los Angeles Angels of Anaheim",
+          "location": "Los Angeles",
+          "source_ids": [
+            "108"
+          ]
+        },
+        {
+          "from_season": 2016,
+          "through_season": null,
+          "name": "Los Angeles Angels",
+          "location": "Los Angeles",
+          "source_ids": [
+            "108"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LAD",
+      "name": "Los Angeles Dodgers",
+      "location": "Los Angeles",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Los Angeles Dodgers",
+          "location": "Los Angeles",
+          "source_ids": [
+            "119"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MIA",
+      "name": "Miami Marlins",
+      "location": "Miami",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": 2011,
+          "name": "Florida Marlins",
+          "location": "Florida",
+          "source_ids": [
+            "146"
+          ]
+        },
+        {
+          "from_season": 2012,
+          "through_season": null,
+          "name": "Miami Marlins",
+          "location": "Miami",
+          "source_ids": [
+            "146"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MIL",
+      "name": "Milwaukee Brewers",
+      "location": "Milwaukee",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Milwaukee Brewers",
+          "location": "Milwaukee",
+          "source_ids": [
+            "158"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MIN",
+      "name": "Minnesota Twins",
+      "location": "Minnesota",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Minnesota Twins",
+          "location": "Minnesota",
+          "source_ids": [
+            "142"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "NYM",
+      "name": "New York Mets",
+      "location": "New York",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "New York Mets",
+          "location": "New York",
+          "source_ids": [
+            "121"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "NYY",
+      "name": "New York Yankees",
+      "location": "New York",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "New York Yankees",
+          "location": "New York",
+          "source_ids": [
+            "147"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PHI",
+      "name": "Philadelphia Phillies",
+      "location": "Philadelphia",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Philadelphia Phillies",
+          "location": "Philadelphia",
+          "source_ids": [
+            "143"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PIT",
+      "name": "Pittsburgh Pirates",
+      "location": "Pittsburgh",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Pittsburgh Pirates",
+          "location": "Pittsburgh",
+          "source_ids": [
+            "134"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SD",
+      "name": "San Diego Padres",
+      "location": "San Diego",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "San Diego Padres",
+          "location": "San Diego",
+          "source_ids": [
+            "135"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SEA",
+      "name": "Seattle Mariners",
+      "location": "Seattle",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Seattle Mariners",
+          "location": "Seattle",
+          "source_ids": [
+            "136"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SF",
+      "name": "San Francisco Giants",
+      "location": "San Francisco",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "San Francisco Giants",
+          "location": "San Francisco",
+          "source_ids": [
+            "137"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STL",
+      "name": "St. Louis Cardinals",
+      "location": "St. Louis",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "St. Louis Cardinals",
+          "location": "St. Louis",
+          "source_ids": [
+            "138"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TB",
+      "name": "Tampa Bay Rays",
+      "location": "Tampa Bay",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": 2007,
+          "name": "Tampa Bay Devil Rays",
+          "location": "Tampa Bay",
+          "source_ids": [
+            "139"
+          ]
+        },
+        {
+          "from_season": 2008,
+          "through_season": null,
+          "name": "Tampa Bay Rays",
+          "location": "Tampa Bay",
+          "source_ids": [
+            "139"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TEX",
+      "name": "Texas Rangers",
+      "location": "Texas",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Texas Rangers",
+          "location": "Texas",
+          "source_ids": [
+            "140"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TOR",
+      "name": "Toronto Blue Jays",
+      "location": "Toronto",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": null,
+          "name": "Toronto Blue Jays",
+          "location": "Toronto",
+          "source_ids": [
+            "141"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "WSH",
+      "name": "Washington Nationals",
+      "location": "Washington",
+      "eras": [
+        {
+          "from_season": 1998,
+          "through_season": 2004,
+          "name": "Montreal Expos",
+          "location": "Montreal",
+          "source_ids": [
+            "120"
+          ]
+        },
+        {
+          "from_season": 2005,
+          "through_season": null,
+          "name": "Washington Nationals",
+          "location": "Washington",
+          "source_ids": [
+            "120"
+          ]
+        }
+      ]
+    }
+  ],
+  "aliases": {
+    "108": "LAA",
+    "109": "AZ",
+    "110": "BAL",
+    "111": "BOS",
+    "112": "CHC",
+    "113": "CIN",
+    "114": "CLE",
+    "115": "COL",
+    "116": "DET",
+    "117": "HOU",
+    "118": "KC",
+    "119": "LAD",
+    "120": "WSH",
+    "121": "NYM",
+    "133": "ATH",
+    "134": "PIT",
+    "135": "SD",
+    "136": "SEA",
+    "137": "SF",
+    "138": "STL",
+    "139": "TB",
+    "140": "TEX",
+    "141": "TOR",
+    "142": "MIN",
+    "143": "PHI",
+    "144": "ATL",
+    "145": "CWS",
+    "146": "MIA",
+    "147": "NYY",
+    "158": "MIL"
+  },
+  "ties_allowed_in": [
+    "regular"
+  ],
+  "display": {
+    "start_time_label": "First pitch",
+    "round_name": null,
+    "schedule_filter": {
+      "unit": "date",
+      "label": "Date",
+      "all_label": "All dates"
+    },
+    "postseason_label": "Postseason",
+    "postseason_round_labels": {
+      "D": "Division Series",
+      "F": "Wild Card",
+      "L": "League Championship Series",
+      "W": "World Series"
+    },
+    "postseason_tie_note": "No ties in MLB postseason"
+  },
+  "windows": {
+    "season": {
+      "start": "03-20",
+      "end": "11-05"
+    },
+    "postseason": {
+      "start": "09-30",
+      "end": "11-05"
+    }
+  },
+  "elo": {
+    "initial": 1000,
+    "scale": 400,
+    "k": 4,
+    "home_advantage": 29,
+    "offseason_regression": 0.333333
+  },
+  "bayesian": {
+    "prior_sd_elo": 35.35533905932737,
+    "tie_prior_games": 707106.7811865475,
+    "tie_prior_rate": 0.000042426406871192855
+  },
+  "elo_tune": {
+    "tune_start": 2006,
+    "tune_end": 2022,
+    "test_end": 2025
+  },
+  "tuning_grids": {
+    "bayesian": {
+      "prior_sd_elo": [
+        25,
+        35.35533905932737,
+        50
+      ],
+      "tie_prior_games": [
+        10000,
+        1000000,
+        100000000
+      ],
+      "tie_prior_rate": [
+        0.000001,
+        0.00003,
+        0.001
+      ]
+    }
+  }
+}

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { LeagueConfig } from '../src/contracts.ts';
+import { indexedDbPersistence } from '../src/persistence.ts';
 import { refresh, type RefreshMessage, type RefreshRequest } from '../src/refresh-worker.ts';
 import type { SessionView } from '../src/session.ts';
 import { readSnapshot, snapshotKey } from '../src/snapshot.ts';
 import { digest, memoryStore } from '../src/storage.ts';
+import { fakeIndexedDb } from './fake-indexeddb.ts';
 import { config, configBytes, historyBytes, seed } from './helpers.ts';
 
 const stops: (() => void)[] = [];
@@ -36,13 +38,21 @@ async function setup() {
     return body === undefined ? new Response('missing', { status: 404 }) : new Response(body);
   });
   vi.stubGlobal('fetch', fetcher);
+  // The small store holds only the refresh cooldown; snapshots and caches persist in (fake) IndexedDB.
   const store = memoryStore();
-  await refresh({ configUrl, dataBase, cache: {} }, (message) => {
-    if (message.type === 'complete') {
-      for (const [key, value] of Object.entries(message.cache)) store.setItem(key, value);
-    }
+  const persistence = indexedDbPersistence(fakeIndexedDb().factory);
+  let built: Record<string, string> = {};
+  await refresh({ league: 'nfl', configUrl, dataBase, cache: {} }, (message) => {
+    if (message.type === 'complete') built = message.cache;
   });
-  const snapshot = readSnapshot(store)!;
+  await persistence.save(built);
+  const entry = async (key: string) => (await persistence.load('nfl'))[key] ?? null;
+  const saved = async () => {
+    const entries = memoryStore();
+    for (const [key, value] of Object.entries(await persistence.load('nfl'))) entries.setItem(key, value);
+    return readSnapshot(entries, 'nfl');
+  };
+  const snapshot = (await saved())!;
   expect(snapshot).not.toBeNull();
   const changes: SessionView[] = [];
   const messages: RefreshMessage[] = [];
@@ -71,6 +81,9 @@ async function setup() {
     files,
     fetcher,
     store,
+    persistence,
+    entry,
+    saved,
     snapshot,
     changes,
     messages,
@@ -79,9 +92,11 @@ async function setup() {
     settle: () => Promise.all(jobs),
     start() {
       const stop = startSession({
-        configUrl,
+        league: 'nfl',
+        configBase: 'https://test/config',
         dataBase,
         store,
+        persistence,
         createWorker,
         locks: null,
         onChange: (view) => changes.push(view),
@@ -131,20 +146,20 @@ it.each(['Bayesian settings', 'source and metadata'])(
       }
       return fetchPublished(url, init);
     });
-    const saved = f.store.getItem(snapshotKey);
+    const saved = await f.entry(snapshotKey('nfl'));
     const stop = f.start();
-    expect(f.changes.at(-1)?.state).toEqual({ ...f.snapshot.state, cached: true });
     await vi.advanceTimersByTimeAsync(0);
     await seedRequested.promise;
+    expect(f.changes[0]?.state).toEqual({ ...f.snapshot.state, cached: true });
     expect(f.changes.at(-1)).toMatchObject({
       phase: 'rebuilding',
       model: f.snapshot.model,
       state: { ...f.snapshot.state, cached: true },
     });
-    expect(f.store.getItem(snapshotKey)).toBe(saved);
+    expect(await f.entry(snapshotKey('nfl'))).toBe(saved);
     releaseSeed.resolve();
     await f.settle();
-    const next = readSnapshot(f.store)!;
+    const next = (await f.saved())!;
     expect(next.file.games).toEqual(f.snapshot.file.games);
     expect(next.model.config).toEqual(updated);
     expect(next.model.seed.config_sha256).toBe(hash);
@@ -181,7 +196,7 @@ it.each(['Bayesian settings', 'source and metadata'])(
     expect(f.messages.filter((message) => message.type === 'progress')).toEqual([{ type: 'progress', phase: 'checking' }]);
     expect(f.fetcher).toHaveBeenCalledWith(f.seedUrl, expect.objectContaining({ cache: 'no-cache' }));
     expect(f.fetcher).toHaveBeenCalledWith('https://test/data/nfl/history.json', expect.objectContaining({ cache: 'no-cache' }));
-    expect(readSnapshot(f.store)?.model).toEqual(next.model);
+    expect((await f.saved())?.model).toEqual(next.model);
     expect(f.changes.at(-1)?.state).toMatchObject({ ...next.state, checked_at: new Date().toISOString() });
   },
 );
@@ -202,8 +217,9 @@ it.each([
   else if (failure === 'invalid configuration')
     f.files.set(f.configUrl, JSON.stringify({ ...updated, bayesian: { ...updated.bayesian, prior_sd_elo: 0 } }));
   else f.files.set(f.seedUrl, JSON.stringify({ ...updatedSeed, ratings: updatedSeed.ratings.slice(1) }));
-  const saved = f.store.getItem(snapshotKey);
-  const savedGames = f.store.getItem('game-results-prediction:nfl:current-2026');
+  const saved = await f.entry(snapshotKey('nfl'));
+  const savedGames = await f.entry('game-results-prediction:nfl:current-2026');
+  expect(savedGames).not.toBeNull();
   await vi.advanceTimersByTimeAsync(1_000);
   const stop = f.start();
   await vi.advanceTimersByTimeAsync(0);
@@ -213,15 +229,15 @@ it.each([
     model: f.snapshot.model,
     state: { ...f.snapshot.state, cached: true, warning: expect.stringContaining(warning) },
   });
-  expect(f.store.getItem(snapshotKey)).toBe(saved);
-  expect(f.store.getItem('game-results-prediction:nfl:current-2026')).toBe(savedGames);
+  expect(await f.entry(snapshotKey('nfl'))).toBe(saved);
+  expect(await f.entry('game-results-prediction:nfl:current-2026')).toBe(savedGames);
   expect(f.messages.at(-1)?.type).toBe(failure === 'invalid configuration' ? 'error' : 'complete');
   stop();
   await f.publishConfig(updated);
   f.start();
   await vi.advanceTimersByTimeAsync(f.cooldownMs);
   await f.settle();
-  const next = readSnapshot(f.store)!;
+  const next = (await f.saved())!;
   expect(next.model.config).toEqual(updated);
   expect(next.model.seed.config_sha256).toBe(hash);
   expect(next.file.games).toEqual(f.snapshot.file.games);

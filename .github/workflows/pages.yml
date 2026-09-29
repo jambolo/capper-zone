@@ -6,7 +6,7 @@ on:
       - master
   workflow_dispatch:
   schedule:
-    # Rebuild so the published Elo seeds stay current after each NFL season rolls over.
+    # Rebuild monthly so every league's published Elo seeds stay current after its configured season rollover (season_rollover_month).
     # The scheduled job limits this to the first Tuesday of each month at 09:17 UTC.
     - cron: '17 9 * * 2'
 
@@ -55,8 +55,10 @@ jobs:
       # The browser app reads these as static assets; they are generated, never committed.
       - name: Generate league data
         run: |
-          cargo run --release -p history-importer
-          cargo run --release -p elo-ratings
+          cargo run --release -p history-importer -- --league nfl
+          cargo run --release -p elo-ratings -- --league nfl
+          cargo run --release -p history-importer -- --league mlb
+          cargo run --release -p elo-ratings -- --league mlb
       - run: pnpm install --frozen-lockfile
         working-directory: apps/web
       - name: Build

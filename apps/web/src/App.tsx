@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { message } from './service.ts';
 import { predict, type Prediction } from './model.ts';
 import { startSession, type SessionView } from './session.ts';
+import { leagueIds } from './leagues.ts';
+import { hashChangeTarget, loadLeagueConfigs, localMonthDay, recordSwitch, startupLeague } from './selection.ts';
+import { smallStore } from './small-store.ts';
+import { postseasonLabel, scheduleKey, scheduleOptions } from './schedule.ts';
 import { APP_VERSION } from './version.ts';
 
 const base = import.meta.env.BASE_URL;
+/** Absolute URL of a published site directory such as `config` or `data`. */
+const siteUrl = (path: string) => new URL(`${base}${path}`, window.location.href).href;
+const initialView: SessionView = { state: null, model: null, phase: 'checking', retryAt: null, error: '' };
 const percent = (p: number) => `${(100 * p).toFixed(1)}%`;
 const number = (n: number) => Math.round(n).toLocaleString();
 
@@ -18,21 +25,48 @@ function exploreMatchups() {
 }
 
 export default function App() {
-  const [view, setView] = useState<SessionView>({ state: null, model: null, phase: 'checking', retryAt: null, error: '' });
+  // Null until the startup rule decides.
+  const [league, setLeague] = useState<string | null>(null);
+  const [names, setNames] = useState<Record<string, string>>({});
+  // Views carry their league, so a previous league's late update never shows.
+  const [session, setSession] = useState<{ league: string; view: SessionView } | null>(null);
+  const view = session !== null && session.league === league ? session.view : initialView;
   const { state, model, error } = view;
   const [home, setHome] = useState(''),
     [away, setAway] = useState(''),
     [neutral, setNeutral] = useState(false);
   const [phase, setPhase] = useState<'regular' | 'postseason'>('regular');
   const [tab, setTab] = useState<'scheduled' | 'completed' | 'awaiting_result'>('scheduled');
-  const [week, setWeek] = useState('all');
+  const [scheduleFilter, setScheduleFilter] = useState('all');
   useEffect(() => {
+    let active = true;
+    const configs = loadLeagueConfigs(leagueIds, siteUrl('config'));
+    void configs.then((loaded) => {
+      if (active) setNames(Object.fromEntries(loaded.map((l) => [l.id, l.name])));
+    });
+    void startupLeague({
+      ids: leagueIds,
+      hash: window.location.hash,
+      store: smallStore(),
+      today: localMonthDay(),
+      loadWindows: () => configs,
+    }).then((id) => {
+      // A switch made while the configurations were loading wins.
+      if (active) setLeague((current) => current ?? id);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (league === null) return;
     let selected = false;
     return startSession({
-      configUrl: new URL(`${base}config/nfl.json`, window.location.href).href,
-      dataBase: new URL(`${base}data`, window.location.href).href,
+      league,
+      configBase: siteUrl('config'),
+      dataBase: siteUrl('data'),
       onChange: (nextView) => {
-        setView(nextView);
+        setSession({ league, view: nextView });
         const s = nextView.state;
         if (s?.status === 'ready' && !selected) {
           selected = true;
@@ -44,7 +78,24 @@ export default function App() {
         }
       },
     });
+  }, [league]);
+  const switchLeague = (id: string) => {
+    if (id === league || !leagueIds.includes(id)) return;
+    recordSwitch(id, { location: window.location, store: smallStore() });
+    setLeague(id);
+    setSession(null);
+    setScheduleFilter('all');
+  };
+  const onHashChange = useEffectEvent(() => {
+    const id = hashChangeTarget(window.location.hash, league ?? '', leagueIds);
+    if (id !== null) switchLeague(id);
+  });
+  useEffect(() => {
+    const listener = () => onHashChange();
+    window.addEventListener('hashchange', listener);
+    return () => window.removeEventListener('hashchange', listener);
   }, []);
+  const leagueName = (id: string) => names[id] ?? (id === league && state ? state.league : id);
   // Predicting is a pure function of the fitted model, so it is derived, never stored.
   const { prediction, predictionError } = useMemo<{
     prediction: Prediction | null;
@@ -68,8 +119,13 @@ export default function App() {
   const teams = [...(state?.teams ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? id;
   const teamLabel = (id: string) => teams.find((t) => t.id === id)?.abbreviation ?? id;
-  const games = (state?.games ?? []).filter((g) => g.status === tab && (week === 'all' || String(g.round) === week));
-  const weeks = [...new Set((state?.games ?? []).map((g) => g.round))].sort((a, b) => a - b);
+  const games = state
+    ? state.games.filter(
+        (g) =>
+          g.status === tab && (scheduleFilter === 'all' || scheduleKey(g, state.display.schedule_filter.unit) === scheduleFilter),
+      )
+    : [];
+  const scheduleValues = state ? scheduleOptions(state.games, state.display.schedule_filter.unit) : [];
   return (
     <>
       <header className="topbar">
@@ -79,7 +135,20 @@ export default function App() {
           </a>
           <p className="brand-tagline">A little insight. A lot to talk about.</p>
           <span className="tag">
-            {state?.league ?? 'NFL'} · {state?.season ?? 'Season'}
+            <select
+              className="league-select"
+              aria-label="League"
+              value={league ?? leagueIds[0]}
+              disabled={league === null}
+              onChange={(e) => switchLeague(e.target.value)}
+            >
+              {leagueIds.map((id) => (
+                <option key={id} value={id}>
+                  {leagueName(id)}
+                </option>
+              ))}
+            </select>{' '}
+            · {state?.season ?? 'Season'}
           </span>
         </div>
       </header>
@@ -123,7 +192,7 @@ export default function App() {
                 ? `Next check: ${new Date(view.retryAt).toLocaleTimeString()}`
                 : 'Checks on page load · at most once per minute'}
             </small>
-            <p className="status-policy">Today's results enter the picture the next day, Eastern Time.</p>
+            {state && <p className="status-policy">{state.result_policy_summary}</p>}
           </aside>
         </div>
         {view.phase === 'rebuilding' && (
@@ -263,7 +332,9 @@ export default function App() {
                       <span>Tie</span>
                       <strong>{percent(prediction.tie)}</strong>
                       <small>
-                        {phase === 'postseason' && state.league === 'NFL' ? 'No ties in NFL playoffs' : 'Chance of a tie'}
+                        {phase === 'postseason' && !state.ties_allowed_in.includes('postseason')
+                          ? state.display.postseason_tie_note
+                          : 'Chance of a tie'}
                       </small>
                     </div>
                     <div className="away-probability">
@@ -304,12 +375,16 @@ export default function App() {
                     <h2>Schedule &amp; results</h2>
                   </div>
                   <label className="week-label">
-                    Week
-                    <select aria-label="Week" value={week} onChange={(e) => setWeek(e.target.value)}>
-                      <option value="all">All weeks</option>
-                      {weeks.map((w) => (
-                        <option key={w} value={w}>
-                          {w}
+                    {state.display.schedule_filter.label}
+                    <select
+                      aria-label={state.display.schedule_filter.label}
+                      value={scheduleFilter}
+                      onChange={(e) => setScheduleFilter(e.target.value)}
+                    >
+                      <option value="all">{state.display.schedule_filter.all_label}</option>
+                      {scheduleValues.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
                         </option>
                       ))}
                     </select>
@@ -334,7 +409,9 @@ export default function App() {
                     games.map((g) => (
                       <article className="game" key={g.id}>
                         <div className="game-meta">
-                          Kickoff {g.date} · Week {g.round} {g.phase === 'postseason' && '· Playoffs'} {g.neutral && '· Neutral'}
+                          {state.display.start_time_label} {g.date}
+                          {state.display.round_name !== null && ` · ${state.display.round_name} ${g.round}`}{' '}
+                          {g.phase === 'postseason' && `· ${postseasonLabel(g, state.display)}`} {g.neutral && '· Neutral'}
                         </div>
                         <div className="game-row">
                           <div>

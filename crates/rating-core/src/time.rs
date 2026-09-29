@@ -3,7 +3,7 @@ use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, LocalResult, NaiveDate, NaiveTime, TimeZone, Utc};
 use chrono_tz::Tz;
 
-pub(crate) fn start_time_utc(game: &SourceGame, warn: &mut impl FnMut(String)) -> Result<DateTime<Utc>> {
+pub(crate) fn start_time_utc(game: &SourceGame, warn: &mut dyn FnMut(String)) -> Result<DateTime<Utc>> {
     ensure!(!game.date.trim().is_empty(), "Missing source date for game {}", game.id);
     let date = NaiveDate::parse_from_str(&game.date, "%Y-%m-%d")
         .with_context(|| format!("Invalid source date {:?} for game {}", game.date, game.id))?;
