@@ -63,7 +63,8 @@ can extend this wait.
 
 The app checks on page load, with a one-minute cooldown between attempts. Reload to check again; an open
 page does not poll periodically. Corrections to eligible outcomes and updates to published preseason
-ratings or historical data are incorporated on a successful update.
+ratings or historical data are incorporated on a successful update. Results that become eligible after
+midnight Eastern also trigger a rebuild on the next successful check, even if the source data is unchanged.
 Saved data belongs to the current browser. If browser storage is unavailable or full, the app still runs
 but cannot preserve results across reloads.
 
@@ -71,9 +72,8 @@ The season is selected automatically on page load. After a season rollover, a su
 the new season's published preseason ratings and schedule. If those are unavailable, saved results may
 remain visible with a warning.
 
-Time passing, including the date crossing midnight, does not automatically invalidate saved predictions.
-If predictions remain stale after a successful check, clear the site's saved data in your browser and
-reload to rebuild from the current published inputs.
+Kickoff alone does not trigger a rebuild, so saved game statuses may remain stale until another change
+requires one. Clearing the site's saved data and reloading forces a rebuild from the current published inputs.
 
 For local setup, building, and contributing, see [DEVELOPMENT.md](DEVELOPMENT.md).
 

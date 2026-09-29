@@ -98,7 +98,6 @@ export class PredictionService {
     const cacheKey = `game-results-prediction:${this.config.id}:current-${this.season}`;
     const now = (this.options.now ?? (() => new Date()))();
     const saved = readSnapshot(store);
-    // Time-based invalidation is deferred; versions and published inputs are checked before reuse.
     const snapshot = saved?.file.league === this.config.id && saved.file.from_season === this.season ? saved : null;
     if (snapshot) {
       this.model = snapshot.model;
@@ -146,10 +145,12 @@ export class PredictionService {
         this.state.cached = true;
         this.state.warning = `Refresh failed. Using cached data from ${cache.fetched_at}. ${message(e)}`;
       }
+      const results = usableResults(file.games, this.config, now);
       const unchanged =
         snapshot !== null &&
         snapshot.model.seed.config_sha256 === this.options.configHash &&
-        JSON.stringify(file.games) === JSON.stringify(snapshot.file.games);
+        JSON.stringify(file.games) === JSON.stringify(snapshot.file.games) &&
+        results.length === snapshot.state.training_games;
       if (!unchanged) this.options.onProgress?.(snapshot ? 'rebuilding' : 'building');
       let published: Awaited<ReturnType<typeof readSeedWithHash>>;
       try {
@@ -181,8 +182,7 @@ export class PredictionService {
       this.seed = published.seed;
       this.state.refreshed_at = file.fetched_at;
       this.state.checked_at = this.state.cached && !snapshot ? null : now.toISOString();
-      const results = usableResults(file.games, this.config, now),
-        completed = new Set(results.map((g) => g.id));
+      const completed = new Set(results.map((g) => g.id));
       this.model = fitPosterior(this.seed, results, this.config);
       this.state.teams = teamEstimates(this.model);
       this.state.training_games = results.length;

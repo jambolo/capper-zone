@@ -527,27 +527,52 @@ it('rebuilds a corrupt saved model from validated games', async () => {
   expect(readSnapshot(store)).not.toBeNull();
 });
 
-it('defers midnight eligibility invalidation when game data has not changed', async () => {
+it.each([
+  ['2026-09-01', '2026-09-02T04:00:00Z'],
+  ['2026-12-01', '2026-12-02T05:00:00Z'],
+])('rebuilds unchanged games when results from %s become eligible at Eastern midnight', async (date, midnight) => {
   publish();
   const store = memoryStore();
-  const run = (date: string) =>
+  const source = csv.replace('2026-09-01', date);
+  const progress = vi.fn();
+  const run = (at: Date) =>
     new PredictionService({
       config,
       configHash,
       dataBase,
       season: 2026,
       store,
-      now: () => new Date(date),
-      fetchSource: async () => csv,
+      now: () => at,
+      fetchSource: async () => source,
+      onProgress: progress,
     });
-  const first = run('2026-09-02T01:00:00Z');
+  const first = run(new Date(`${date}T23:59:59Z`));
   await first.initialize();
-  expect(first.getState().training_games).toBe(0);
+  expect(first.getState()).toMatchObject({ training_games: 0, held_results: 1 });
   const fitted = vi.spyOn(model, 'fitPosterior');
-  const second = run('2026-09-02T12:00:00Z');
-  await second.initialize();
-  expect(second.getState().training_games).toBe(0);
+  const beforeMidnight = run(new Date(Date.parse(midnight) - 1));
+  await beforeMidnight.initialize();
+  expect(beforeMidnight.getState()).toMatchObject({ training_games: 0, held_results: 1 });
   expect(fitted).not.toHaveBeenCalled();
+  progress.mockClear();
+  const second = run(new Date(midnight));
+  await second.initialize();
+  expect(second.getState()).toMatchObject({ training_games: 1, held_results: 0 });
+  expect(second.getState().games.find((g) => g.id === 'g1')).toMatchObject({ status: 'completed', result: 'home_win' });
+  expect(second.predict('SEA', 'SF', true, 'regular').home_win).toBeGreaterThan(
+    first.predict('SEA', 'SF', true, 'regular').home_win,
+  );
+  expect(fitted).toHaveBeenCalled();
+  expect(progress.mock.calls).toEqual([['checking'], ['rebuilding']]);
+  expect(readSnapshot(store)?.state.training_games).toBe(1);
+
+  fitted.mockClear();
+  progress.mockClear();
+  const nextDay = run(new Date(Date.parse(midnight) + 24 * 60 * 60 * 1000));
+  await nextDay.initialize();
+  expect(nextDay.getModel()).toEqual(second.getModel());
+  expect(fitted).not.toHaveBeenCalled();
+  expect(progress.mock.calls).toEqual([['checking']]);
 });
 
 it('refuses stale seeds and future leakage while still refreshing the current cache', async () => {

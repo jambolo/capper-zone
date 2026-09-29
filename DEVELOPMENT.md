@@ -55,7 +55,7 @@ Implementation checks and their scope are recorded in [docs/verification.md](doc
 2. **`elo-ratings` — Rust:** reads those files, replays games chronologically, and writes preseason Elo ratings and a per-game audit trail.
 3. **`elo-tune` — Rust:** searches Elo parameters against saved historical games and reports tuning and held-out evaluation; it never changes configuration or data files.
 4. **`bayes-tune` — Rust:** searches Bayesian prior uncertainty and tie smoothing against saved history with Elo settings fixed; reports tuning and held-out evaluation without changing inputs.
-5. **`web` — TypeScript:** a static React app. It immediately restores cached predictions, checks the current season in the background on page load, and rebuilds the Bayesian model when normalized game data, configuration, or published preseason ratings and history change. Downloads and fitting run in a Web Worker.
+5. **`web` — TypeScript:** a static React app. It immediately restores cached predictions, checks the current season in the background on page load, and rebuilds the Bayesian model when normalized game data, result eligibility, configuration, or published preseason ratings and history change. Downloads and fitting run in a Web Worker.
 
 ## Building and publishing
 
@@ -227,8 +227,8 @@ pnpm 12 has its own `docs` subcommand that shadows the script.
 
 The browser stores current-season games, the fitted model, and displayed predictions in `localStorage`.
 Returning visits show compatible saved results before any network request. A Web Worker checks for updates
-and rebuilds when the app version, normalized current-season game data, configuration, or published Elo
-seed differs. Changes to CSV formatting, row order, or scores that do not change the outcome do not trigger
+and rebuilds when the app version, normalized current-season game data, eligible result count, configuration,
+or published Elo seed differs. Changes to CSV formatting, row order, or scores that do not change the outcome do not trigger
 a rebuild. A notification remains visible during rebuilding, and compatible old results remain usable
 until the complete replacement is ready. Failed updates retain compatible predictions with a warning.
 The page shows when its displayed data was retrieved and when it was last successfully checked; these
@@ -253,7 +253,7 @@ hash before reusing a model. Seed and history requests use `cache: 'no-cache'` t
 entries. Their response bodies are hashed on each check, even when revalidation avoids transferring them.
 A SHA-256 hash of the exact seed bytes is stored as `seed_sha256` in the model snapshot. Changed seed bytes
 trigger a rebuild, including a regenerated seed with a new history hash; mismatched history and seed files
-fail the update and preserve the previous snapshot. Unchanged validated inputs skip model fitting.
+fail the update and preserve the previous snapshot. Unchanged validated inputs and result eligibility skip model fitting.
 Snapshots with the current app version but no seed fingerprint still display immediately and rebuild on
 their first successful refresh to acquire one.
 
@@ -264,9 +264,11 @@ models and predictions are not used. Valid raw game caches remain reusable after
 Failed upgrades preserve the old snapshot and validated raw games for retry and show an error; only
 compatible snapshots can supply fallback predictions. Successful builds write the running app version.
 
-Automatic invalidation for midnight result eligibility and kickoff/status changes is deferred.
-An unchanged game snapshot can retain old predictions and statuses. Clear the site's saved
-data to force an initial build with the current inputs. Cache, refresh-lock, and cooldown keys in
+Each check computes eligible results using the current time and compares their count with the snapshot's
+`training_games`. NFL results becoming eligible at midnight Eastern trigger a rebuild even when normalized
+games are unchanged. Crossing midnight without a change in eligibility does not trigger model fitting.
+Kickoff/status changes alone still do not invalidate a snapshot. Clear the site's saved data to force
+an initial build with the current inputs. Cache, refresh-lock, and cooldown keys in
 `session.ts` and `snapshot.ts` currently assume the single NFL browser app; see
 [browser wiring](docs/extending.md#wire-the-browser) before adding leagues.
 
