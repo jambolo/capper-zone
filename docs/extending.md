@@ -17,9 +17,27 @@ For the existing generic provider, use:
 
 Set `ties_allowed_in` to `[]` if no games may end in a tie, `["regular"]` if only regular-season games allow ties, or `["regular", "postseason"]` if both phases do. A normalized tie in a forbidden phase is rejected. Elo continues to support a 0.5 tie outcome where permitted.
 
-Team IDs are stable franchise identities. Map renamed/relocated aliases to those identities, rather than creating a new team unless it is genuinely a new franchise. Each team has a current `name` and `location`, plus `eras` containing `from_season`, inclusive `through_season` (null for the open-ended current era), historical `name`, home-market `location`, and accepted `source_ids`. Eras must be contiguous and non-overlapping, cover the configured history start, and end in an open-ended era matching the current metadata. See `docs/team-history.md`. The first version assumes the configured roster is appropriate for the modeled historical period. Supporting league expansion *within* that period may need activation dates and a policy for new-team priors.
+Team IDs are stable franchise identities. Map renamed/relocated aliases to those identities, rather than creating a new team unless it is genuinely a new franchise. Each team has a current `name` and `location`, plus `eras` containing `from_season`, inclusive `through_season` (null for the open-ended current era), historical `name`, home-market `location`, and accepted `source_ids`. Eras must be contiguous and non-overlapping, cover the configured history start, and end in an open-ended era matching the current metadata. See [franchise identity rules](team-history.md). The model assumes the configured team list is appropriate for the entire modeled historical period. Supporting league expansion *within* that period may need activation dates and a policy for new-team priors.
 
-## Provider response (schema 2)
+## Wire the browser
+
+The algorithms and provider contracts support other leagues, but the shipped browser interface is wired
+to the NFL. Creating another configuration file alone does not add a league selector.
+
+1. Generate history and the target-season Elo seed using that configuration and the Rust commands in
+   [DEVELOPMENT.md](../DEVELOPMENT.md#generating-data-and-configuring-seasons).
+2. Change `configUrl` in `apps/web/src/App.tsx` from `config/nfl.json` to the configuration to publish.
+   The Vite build includes JSON files from the repository's `config/` and `data/` directories. If a CLI
+   uses another data directory, update the Vite data mount or copy its outputs into `data/<league>/`.
+3. Replace the NFL-specific model snapshot, refresh-lock, and cooldown keys in `apps/web/src/snapshot.ts`
+   and `apps/web/src/session.ts`. Namespace them by league if supporting multiple leagues in one browser.
+4. Adapt interface defaults and labels such as **NFL**, **Week**, **Kickoff**, and **Playoffs** in
+   `apps/web/src/App.tsx`, then rebuild and deploy the app with its matching data.
+
+The provider endpoint must permit browser requests through CORS. An authoritative final-status policy
+belongs in the provider: the canonical adapter trusts every non-null outcome as final.
+
+## Provider response
 
 The generic HTTPS endpoint returns all relevant historical seasons and the current season in this envelope. Additional envelope metadata is allowed. This example is illustrative, not actual game data:
 
@@ -53,7 +71,7 @@ The generic HTTPS endpoint returns all relevant historical seasons and the curre
 - `phase`: `"regular"` or `"postseason"`.
 - `season`: a consistent integer season label, also for games played in the next calendar year.
 - `date`, `time`, `timezone`: local calendar date, optional HH:mm game start time, and IANA time zone. The date remains required when the time is null.
-- `start_time_utc`: optional in provider responses. The importer ignores this source field and derives the timestamp from the required local date, optional time, and timezone so conversion warnings are always applied.
+- `start_time_utc`: omit this field in provider responses. Both adapters derive it from the required local date, optional time, and timezone. The Rust importer ignores a supplied value; the browser validates any supplied value's format before replacing it with the derived timestamp.
 - `round`: positive integer round index; it is for display, not modeling.
 - `round_label`: source-specific round label; it is metadata, not a rating input.
 - `neutral`: true disables home advantage.
@@ -64,34 +82,51 @@ Normalization sorts by `(season, start_time_utc, id)`, using IANA timezone rules
 
 The importer accepts this exact envelope from HTTPS or through its `--input` file option. The TypeScript app independently downloads the provider and persists only the selected current season. The Elo program reads only historical JSON and does not depend on the provider implementation.
 
-## Historical output (schema 3)
+## Historical output
 
-`history.json` has envelope `schema_version: 3` and the effective-season team registry. Each game contains
-the same identity, season, phase, venue, and result metadata as the provider example, but replaces `date`,
-`time`, and `timezone` with this required field:
+The importer writes `data/<league>/history.json` with these fields:
+
+| Field | Contents |
+| --- | --- |
+| `schema_version` | `3` |
+| `league` | League ID matching the configuration |
+| `fetched_at` | RFC 3339 timestamp of the import |
+| `source_url` | Configured provider URL |
+| `from_season` | First included season |
+| `through_season` | Last included season, inclusive |
+| `teams` | Franchise identity registry described in [team-history.md](team-history.md#how-it-is-stored) |
+| `games` | Array of normalized historical game records |
+
+Each game has the following structure. This example is illustrative, not actual game data:
 
 ```json
 {
-  "start_time_utc": "2026-09-01T18:00:00Z"
+  "id": "2026-001",
+  "league": "example",
+  "season": 2026,
+  "start_time_utc": "2026-09-01T18:00:00Z",
+  "phase": "regular",
+  "round_label": "REG",
+  "round": 1,
+  "home_team": "TEAM_A",
+  "away_team": "TEAM_B",
+  "home_source_id": "TEAM_A",
+  "away_source_id": "TEAM_B",
+  "neutral": false,
+  "result": "home_win"
 }
 ```
 
-Imports serialize RFC 3339 UTC timestamps with `Z`. Historical readers parse the timestamp as an absolute
-instant, require an explicit offset, and sort by `(season, start_time_utc, id)`. They ignore any leftover local
-fields and never use them to reconstruct, override, or repair `start_time_utc`. Missing, null, or malformed UTC
-timestamps are errors. This stored history format is distinct from the provider input format.
+The identity, season, phase, venue, and result fields follow the [provider contract](#provider-response).
+Historical records store `start_time_utc` instead of the provider's `date`, `time`, and `timezone` fields.
+The importer serializes this required timestamp as RFC 3339 UTC with `Z`. Readers treat it as the
+authoritative start instant, require an explicit offset, and sort games by `(season, start_time_utc, id)`.
+Missing, null, or malformed timestamps are errors.
 
-Schema 1 and 2 histories must be regenerated with `history-importer`, followed by `elo-ratings` for the matching
-target season so the seed records the new history hash. Preserve the original season and data-directory
-options when regenerating. Configuration and Elo seeds remain schema 1. Canonical source responses and browser
-caches use schema 2. Update canonical providers to the documented fields and schema before importing or
-refreshing. Older browser caches cannot be used as fallback data; a successful refresh replaces them.
 The browser and Node backtest verify the history file's hash; they obtain game records from the provider
 and do not deserialize the historical game records.
 
-Deploy the updated application, history, and Elo seed together. For rollback, restore the previous application
-and its matching history/seed pair together; renamed records are not readable by the earlier release. Keep a
-backup of those files before regenerating them.
+Generate the Elo seed from the published history and configuration so its SHA-256 hashes match those files.
 
 ## Additional provider formats
 

@@ -52,7 +52,11 @@ Each team in `config/nfl.json` has:
 }
 ```
 
-Both historical and current JSON files embed this identity registry under `teams`. Every game stores stable `home_team` / `away_team` values and the unmodified original `home_source_id` / `away_source_id` abbreviations. Thus an Oakland game stores `home_team: "LV"` and `home_source_id: "OAK"`; the game's season resolves its historical name and location from the embedded registry.
+The historical `history.json` file and the browser's current-season cache embed this identity registry
+under `teams`. The Elo seed contains ratings and configuration/history hashes, not a copy of the registry.
+Every game stores stable `home_team` / `away_team` values and the unmodified original
+`home_source_id` / `away_source_id` abbreviations. Thus an Oakland game stores `home_team: "LV"` and
+`home_source_id: "OAK"`; the game's season resolves its historical name and location from the registry.
 
 Season boundaries are inclusive. Postseason games played in January/February retain the season that started in the preceding calendar year, so the correct team identity carries through the entire season. Renames within a season would require extending the registry to effective dates; none of the included changes need that finer granularity.
 
@@ -63,7 +67,7 @@ Season boundaries are inclusive. Postseason games played in January/February ret
 - Identity eras must not overlap or leave gaps; the final era is open-ended and matches the current team metadata.
 - NFL source abbreviations must be valid in the game's era; an `LV` provider code in a 2019 NFL game is rejected instead of silently relabeling it.
 - The Elo calculator refuses historical files whose embedded identity registry differs from the active configuration. After changing identity metadata, rerun the importer and then the Elo calculator.
-- The React app uses the selected season's name and abbreviation, including when run for a historical backtest season, and exposes the change history in a table.
+- Team estimates resolve names and abbreviations from the model's target season. The React app automatically selects the current season and displays a franchise-history table; it has no historical-season selector. The Node backtest reports evaluation metrics rather than rendering the interface.
 - Relocations and renames do **not** reset Elo or Bayesian strength, duplicate the franchise, or create an extra team. Only the ordinary configured offseason regression applies.
 
 Tests check all included transition seasons, original-code preservation, invalid-era rejection, overlapping/gapped ranges, and a Raiders rating carried from a 2019 Oakland game into a 2020 Las Vegas game.
