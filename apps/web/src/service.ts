@@ -5,6 +5,7 @@ import { fitPosterior, predict, teamEstimates, type Posterior, type Prediction }
 import { download, parseSource, usableResults } from './provider.ts';
 import { browserStore, readCache, readSeedWithHash, writeCache, type Store } from './storage.ts';
 import { readSnapshot, writeSnapshot, type ModelSnapshot } from './snapshot.ts';
+import { APP_VERSION } from './version.ts';
 
 export type RefreshPhase = 'checking' | 'building' | 'rebuilding';
 
@@ -97,7 +98,7 @@ export class PredictionService {
     const cacheKey = `game-results-prediction:${this.config.id}:current-${this.season}`;
     const now = (this.options.now ?? (() => new Date()))();
     const saved = readSnapshot(store);
-    // Time and model-code invalidation are deferred; published inputs are checked before reusing predictions.
+    // Time-based invalidation is deferred; versions and published inputs are checked before reuse.
     const snapshot = saved?.file.league === this.config.id && saved.file.from_season === this.season ? saved : null;
     if (snapshot) {
       this.model = snapshot.model;
@@ -135,7 +136,8 @@ export class PredictionService {
           teams: this.config.teams,
           games,
         };
-        if (!snapshot) writeCache(store, cacheKey, file);
+        // Preserve validated games until the replacement model is complete, including during app upgrades.
+        if (!cache) writeCache(store, cacheKey, file);
         if (cacheProblem) this.state.warning = `${cacheProblem}Replaced it with a valid download.`;
       } catch (e) {
         if (snapshot) throw e;
@@ -214,6 +216,7 @@ export class PredictionService {
       // Commit the source and fitted output only after the complete build succeeds.
       if (snapshot) this.state.cached = false;
       const builtSnapshot: ModelSnapshot = {
+        app_version: APP_VERSION,
         file,
         model: this.model,
         state: { ...this.state, warning: null },
@@ -232,6 +235,8 @@ export class PredictionService {
         };
         return;
       }
+      this.model = null;
+      this.seed = null;
       this.state.status = 'error';
       this.state.error = message(e);
     }

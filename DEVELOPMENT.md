@@ -109,6 +109,14 @@ Increment the app version when releasing changes to the browser app's code or be
 belongs to a project release, so it also requires a project version bump. A project release can retain the
 previous app version. The two version numbers do not need to match.
 
+The app version is also the model-cache compatibility version. `apps/web/src/version.ts` reads it from
+`apps/web/package.json`; the page and worker bundle that same value, and the footer displays it.
+Bump the app version before deploying changes to prediction behavior or serialized snapshot structure,
+including dependency changes that affect either. Snapshots require an exact version match, so every app
+version change, including a UI-only release or a downgrade, forces a rebuild. Bumping only the project
+version does not invalidate browser models. Pages does not enforce this rule; deployments that reuse an
+app version cannot detect code changes through version checking.
+
 Use [Semantic Versioning](https://semver.org/), choosing each version's increment for its own scope:
 
 - **Major:** incompatible changes to supported interfaces or behavior, such as CLI or data contracts.
@@ -218,13 +226,13 @@ pnpm 12 has its own `docs` subcommand that shadows the script.
 ### Browser cache and refresh behavior
 
 The browser stores current-season games, the fitted model, and displayed predictions in `localStorage`.
-Returning visits show the saved results before any network request. A Web Worker checks for updates and
-rebuilds when normalized current-season game data, configuration, or the published Elo seed differs;
-changes to CSV formatting, row order, or scores that do not change the outcome do not trigger a rebuild.
-A notification remains visible during rebuilding, and the old results remain usable until the complete
-replacement is ready. Failed updates
-retain the previous snapshot with a warning. The page shows when its displayed data was retrieved and
-when it was last successfully checked; these are browser timestamps, not the provider's publication time.
+Returning visits show compatible saved results before any network request. A Web Worker checks for updates
+and rebuilds when the app version, normalized current-season game data, configuration, or published Elo
+seed differs. Changes to CSV formatting, row order, or scores that do not change the outcome do not trigger
+a rebuild. A notification remains visible during rebuilding, and compatible old results remain usable
+until the complete replacement is ready. Failed updates retain compatible predictions with a warning.
+The page shows when its displayed data was retrieved and when it was last successfully checked; these
+are browser timestamps, not the provider's publication time.
 
 A refresh-attempt timestamp is saved before work starts. Rapid reloads wait until 60 seconds after that
 attempt before checking again, including after an interrupted attempt. Web Locks coordinate tabs where
@@ -246,11 +254,18 @@ entries. Their response bodies are hashed on each check, even when revalidation 
 A SHA-256 hash of the exact seed bytes is stored as `seed_sha256` in the model snapshot. Changed seed bytes
 trigger a rebuild, including a regenerated seed with a new history hash; mismatched history and seed files
 fail the update and preserve the previous snapshot. Unchanged validated inputs skip model fitting.
-Older snapshots without a seed fingerprint still display immediately and rebuild on their first successful
-refresh to acquire one.
+Snapshots with the current app version but no seed fingerprint still display immediately and rebuild on
+their first successful refresh to acquire one.
 
-Automatic invalidation for midnight result eligibility, kickoff/status changes, and model-code changes
-is deferred. An unchanged game snapshot can retain old predictions and statuses. Clear the site's saved
+Each model snapshot stores `app_version`. The shared snapshot reader rejects missing, different, or malformed
+versions before restoring a model, both on the page (including after acquiring the refresh lock) and in the
+worker's service. Incompatible snapshots remain stored until a complete replacement succeeds, but their
+models and predictions are not used. Valid raw game caches remain reusable after their existing validation.
+Failed upgrades preserve the old snapshot and validated raw games for retry and show an error; only
+compatible snapshots can supply fallback predictions. Successful builds write the running app version.
+
+Automatic invalidation for midnight result eligibility and kickoff/status changes is deferred.
+An unchanged game snapshot can retain old predictions and statuses. Clear the site's saved
 data to force an initial build with the current inputs. Cache, refresh-lock, and cooldown keys in
 `session.ts` and `snapshot.ts` currently assume the single NFL browser app; see
 [browser wiring](docs/extending.md#wire-the-browser) before adding leagues.

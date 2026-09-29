@@ -5,6 +5,7 @@ import * as model from '../src/model.ts';
 import { readSnapshot, snapshotKey } from '../src/snapshot.ts';
 import { digest, memoryStore, type Store } from '../src/storage.ts';
 import { config, configHash, game, historyBytes, seed } from './helpers.ts';
+import { version as appVersion } from '../package.json';
 
 const now = () => new Date('2026-09-19T18:00:00Z');
 const dataBase = 'https://published.test/data';
@@ -104,6 +105,7 @@ it('revalidates published inputs and skips fitting for unchanged normalized data
   await first.initialize();
   const fitted = vi.spyOn(model, 'fitPosterior');
   const progress = vi.fn();
+  expect(readSnapshot(store)?.app_version).toBe(appVersion);
   requests.length = 0;
   const rows = csv.trim().split('\n');
   const second = new PredictionService({
@@ -224,7 +226,7 @@ it.each(['elo-2026.json', 'history.json'])('retains the snapshot if the freshnes
   expect(store.getItem(snapshotKey)).toBe(saved);
 });
 
-it('rebuilds a legacy snapshot once to record its published seed fingerprint', async () => {
+it('rebuilds a compatible snapshot once to record its missing seed fingerprint', async () => {
   const { published } = publish();
   const store = memoryStore();
   await service(store, async () => csv).initialize();
@@ -240,6 +242,99 @@ it('rebuilds a legacy snapshot once to record its published seed fingerprint', a
   await service(store, async () => csv).initialize();
   expect(fitted).not.toHaveBeenCalled();
 });
+
+it.each([undefined, '0.0.0', '999.0.0', 42])('rebuilds unchanged inputs when the saved app version is %s', async (version) => {
+  publish();
+  const store = memoryStore();
+  await service(store, async () => csv).initialize();
+  const saved = JSON.parse(store.getItem(snapshotKey)!);
+  saved.app_version = version;
+  store.setItem(snapshotKey, JSON.stringify(saved));
+  expect(readSnapshot(store)).toBeNull();
+  const fitted = vi.spyOn(model, 'fitPosterior');
+  const progress = vi.fn(() => expect(second.getModel()).toBeNull());
+  const second = new PredictionService({
+    config,
+    configHash,
+    dataBase,
+    season: 2026,
+    now,
+    store,
+    fetchSource: async () => csv,
+    onProgress: progress,
+  });
+  await second.initialize();
+  expect(fitted).toHaveBeenCalled();
+  expect(progress.mock.calls).toHaveLength(2);
+  expect(second.getState()).toMatchObject({ status: 'ready', cached: false, warning: null });
+  expect(readSnapshot(store)).toMatchObject({
+    app_version: appVersion,
+    file: { games: saved.file.games },
+    model: second.getModel(),
+  });
+});
+
+it.each([true, false])('validates raw game caches independently during an app upgrade; valid: %s', async (valid) => {
+  publish();
+  const store = memoryStore();
+  await service(store, async () => csv).initialize();
+  const saved = JSON.parse(store.getItem(snapshotKey)!);
+  saved.app_version = '0.0.0';
+  store.setItem(snapshotKey, JSON.stringify(saved));
+  if (!valid) {
+    const games = JSON.parse(store.getItem(cacheKey)!);
+    games.schema_version = 1;
+    store.setItem(cacheKey, JSON.stringify(games));
+  }
+  const second = service(store, async () => {
+    throw new Error('offline');
+  });
+  await second.initialize();
+  if (valid) {
+    expect(second.getState()).toMatchObject({ status: 'ready', cached: true, warning: expect.stringContaining('offline') });
+    expect(readSnapshot(store)?.app_version).toBe(appVersion);
+  } else {
+    expect(second.getState()).toMatchObject({ status: 'error', error: expect.stringContaining('No valid current-season cache') });
+    expect(second.getModel()).toBeNull();
+    expect(store.getItem(snapshotKey)).toBe(JSON.stringify(saved));
+  }
+});
+
+it.each(['fetch', 'validation', 'prediction'])(
+  'preserves stored data after an app upgrade %s failure and recovers',
+  async (failure) => {
+    const { published } = publish();
+    const store = memoryStore();
+    await service(store, async () => csv).initialize();
+    const legacy = JSON.parse(store.getItem(snapshotKey)!);
+    legacy.app_version = '0.0.0';
+    const saved = JSON.stringify(legacy);
+    store.setItem(snapshotKey, saved);
+    const savedGames = store.getItem(cacheKey);
+    const seedUrl = `${dataBase}/nfl/elo-2026.json`;
+    const seedBytes = published[seedUrl];
+    if (failure === 'fetch') delete published[seedUrl];
+    else if (failure === 'validation') published[seedUrl] = JSON.stringify({ ...seed(), config_sha256: '0'.repeat(64) });
+    else
+      vi.spyOn(model, 'predict').mockImplementationOnce(() => {
+        throw new Error('prediction failed');
+      });
+    const changed = csv.replace('SF,10,SEA,20', 'SF,30,SEA,20');
+    const second = service(store, async () => changed);
+    await second.initialize();
+    expect(second.getState()).toMatchObject({ status: 'error', error: expect.any(String) });
+    expect(second.getModel()).toBeNull();
+    expect(() => second.predict('SEA', 'SF', true, 'regular')).toThrow('Predictions are not ready');
+    expect(store.getItem(snapshotKey)).toBe(saved);
+    expect(store.getItem(cacheKey)).toBe(savedGames);
+    published[seedUrl] = seedBytes;
+    vi.restoreAllMocks();
+    const retry = service(store, async () => changed);
+    await retry.initialize();
+    expect(retry.getState()).toMatchObject({ status: 'ready', cached: false, warning: null });
+    expect(readSnapshot(store)).toMatchObject({ app_version: appVersion, file: { games: [{ result: 'away_win' }, {}] } });
+  },
+);
 
 it.each([true, false])('refreshes a changed baseline with unchanged games; updated seed available: %s', async (available) => {
   const updated = seed();

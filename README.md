@@ -50,8 +50,11 @@ how renamed or relocated teams retain their rating history.
 ### Updates and saved results
 
 The status card shows **Data retrieved** and **Last checked**. These are your browser's timestamps, not
-the data provider's publication time. Saved results remain usable while an update is being prepared.
+the data provider's publication time. Compatible saved results remain usable while an update is being prepared.
 If an update fails, the app retains the previous snapshot and displays a warning.
+
+The footer shows the running app version. Loading a different version rebuilds saved predictions before
+showing them. If that rebuild fails, the app reports an error and keeps the saved data for retry.
 
 **NFL results enter the model on the following calendar day in Eastern Time.** The source has no
 authoritative live/final flag, so today's scores are deliberately excluded. A game may remain under
@@ -68,8 +71,7 @@ The season is selected automatically on page load. After a season rollover, a su
 the new season's published preseason ratings and schedule. If those are unavailable, saved results may
 remain visible with a warning.
 
-Some changes do not automatically invalidate saved predictions, including the date crossing midnight
-or an updated model implementation.
+Time passing, including the date crossing midnight, does not automatically invalidate saved predictions.
 If predictions remain stale after a successful check, clear the site's saved data in your browser and
 reload to rebuild from the current published inputs.
 

@@ -3,9 +3,11 @@ import { configSchema, gameFileSchema, gameSchema, seedSchema, validateGames } f
 import type { Posterior } from './model.ts';
 import type { PublicState } from './service.ts';
 import type { Store } from './storage.ts';
+import { APP_VERSION } from './version.ts';
 
 export const snapshotKey = 'game-results-prediction:nfl:model-v1';
 export type ModelSnapshot = {
+  app_version: string;
   file: z.infer<typeof gameFileSchema>;
   model: Posterior;
   state: PublicState;
@@ -21,6 +23,7 @@ const prediction = z.object({
   home_probability_interval: z.tuple([probability, probability]),
 });
 const snapshotSchema = z.object({
+  app_version: z.literal(APP_VERSION),
   seed_sha256: z
     .string()
     .regex(/^[a-f0-9]{64}$/)
