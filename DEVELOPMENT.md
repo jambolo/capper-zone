@@ -85,11 +85,66 @@ pnpm -C apps/web build
   Builds and tests run on Ubuntu and Windows; lint and formatting jobs run on pull requests.
 - Both CI workflows upload coverage to Codecov on `develop`, with separate `rust` and `web` flags.
 - `cd.yml` runs when `Cargo.toml` or `apps/web/package.json` changes on `master`. After builds and tests,
-  it creates missing `cli-v<version>` and `web-v<version>` tags and merges `master` into `develop` if it
-  created a tag. It does not publish the website.
-- `pages.yml` deploys the website on pushes to `master`, manual dispatch, and its weekly Tuesday schedule.
+  it creates missing `v<project-version>` and `web-v<app-version>` tags and merges `master` into `develop`
+  if it created a tag. It does not create GitHub releases or publish the website.
+- `pages.yml` deploys the website from `master` on pushes and manual dispatch. Its weekly Tuesday
+  schedule dispatches a build on `master` only on the first Tuesday of each month at 09:17 UTC.
 
 The README's CI and coverage badges track `develop`; its CD and Pages badges track `master`.
+
+### Versioning strategy
+
+Maintain two version numbers. Tags and GitHub releases derive their versions from these manifests:
+
+| Scope | Source of truth | Git tag | GitHub release title |
+| --- | --- | --- | --- |
+| Entire project | `Cargo.toml`: `[workspace.package].version` | `vX.Y.Z` | `Rally Row X.Y.Z` |
+| Web app | `apps/web/package.json`: `version` | `web-vA.B.C` | `Rally Row Web A.B.C` |
+
+The project version covers the entire repository: Rust components, web app, configuration, documentation,
+and GitHub workflows. Every project release increments it. All Rust crates inherit this version, including
+when a release changes only the web app or workflows.
+
+Increment the app version when releasing changes to the browser app's code or behavior. Every app release
+belongs to a project release, so it also requires a project version bump. A project release can retain the
+previous app version. The two version numbers do not need to match.
+
+Use [Semantic Versioning](https://semver.org/), choosing each version's increment for its own scope:
+
+- **Major:** incompatible changes to supported interfaces or behavior, such as CLI or data contracts.
+- **Minor:** backward-compatible features.
+- **Patch:** backward-compatible fixes and maintenance, including workflow or documentation fixes.
+
+For example, a workflow fix bumps only the project patch version; a web bug fix bumps both patch versions.
+A breaking CLI change bumps the project major version without requiring an app version change.
+Scheduled refreshes of external data do not bump either software version; data can change between builds
+of the same software release.
+
+### Preparing a release
+
+1. Bump the project version in `Cargo.toml` when preparing the release, rather than on every commit.
+   Refresh and commit the workspace package versions in `Cargo.lock`. Bump the app version if applicable.
+   Include the project bump for releases containing only workflow or documentation changes so CD runs.
+2. Merge the release into `master`. CD builds and tests that commit, then creates the missing project tag
+   and, when the app version is new, its web tag on that same commit. An unchanged app keeps its existing tag.
+3. Create GitHub releases from those tags using the titles above. Project release notes identify the
+   included app version; app release notes identify the containing project release. Mark the project
+   release as **Latest**. GitHub release titles do not introduce another version number.
+4. Keep published tags fixed. Corrections receive new versions.
+
+Preserve historical `cli-v*` and `web-v*` tags and releases. Future project tags use `v*`; the first release
+under this policy should increase the project version beyond the existing `1.0.0`, rather than renaming
+`cli-v1.0.0` or reusing that version for a different project snapshot.
+
+### Current automation limits
+
+The tag naming supports this policy, but the existing workflows do not enforce all of it:
+
+- CD creates missing tags without validating version increases, requiring a project bump for an app
+  release, or checking whether an existing tag points to the intended commit. Review these before release.
+- GitHub release creation, release notes, and the **Latest** designation are manual.
+- Pages deploys `master` independently of CD, including scheduled refreshes. It does not ensure that
+  production or monthly data refreshes use the latest successfully released project commit.
 
 ## Generating data and configuring seasons
 
