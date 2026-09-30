@@ -168,6 +168,14 @@ it('rejects an MLB source URL without a {season} placeholder', () => {
   expect(result.error?.issues.map((issue) => issue.message)).toContain('Source URL needs a {season} placeholder');
 });
 
+it('requires an abbreviation for every MLB team era', () => {
+  const raw = rawConfig() as { teams: { eras: { abbreviation?: string }[] }[] };
+  delete raw.teams[0].eras[0].abbreviation;
+  const result = configSchema.safeParse(raw);
+  expect(result.success).toBe(false);
+  expect(result.error?.issues.map((issue) => issue.message)).toContain('Every team era needs an abbreviation');
+});
+
 it('requires a provider start time for adapters that supply them', () => {
   const [game] = parseEntries([entry(910016, 'R', 'Final', [141, 3], [119, 2], false)]);
   const { start_time_utc: _dropped, ...withoutStart } = game;

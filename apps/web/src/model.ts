@@ -220,14 +220,17 @@ export function predict(model: Posterior, home: string, away: string, neutral: b
 export function teamEstimates(model: Posterior) {
   const factor = Math.LN10 / model.config.elo.scale;
   return model.ids
-    .map((id, i) => ({
-      id,
-      name: teamIdentity(model.config, id, model.seed.target_season).name,
-      location: teamIdentity(model.config, id, model.seed.target_season).location,
-      abbreviation: teamIdentity(model.config, id, model.seed.target_season).source_ids[0],
-      initial_elo: model.seed.ratings.find((r) => r.team === id)!.elo,
-      rating: model.config.elo.initial + model.means[i] / factor,
-      sd: Math.sqrt(model.covariance[i][i]) / factor,
-    }))
+    .map((id, i) => {
+      const era = teamIdentity(model.config, id, model.seed.target_season);
+      return {
+        id,
+        name: era.name,
+        location: era.location,
+        abbreviation: era.abbreviation ?? era.source_ids[0],
+        initial_elo: model.seed.ratings.find((r) => r.team === id)!.elo,
+        rating: model.config.elo.initial + model.means[i] / factor,
+        sd: Math.sqrt(model.covariance[i][i]) / factor,
+      };
+    })
     .sort((a, b) => b.rating - a.rating);
 }

@@ -165,7 +165,12 @@ export const mlbStatsApi: SourceAdapter = {
     summary: 'Results enter the picture as soon as the provider marks a game final.',
     detail: 'Results count as soon as the provider marks a game final; postponed, suspended, and cancelled games are not results.',
   },
-  validateConfig: (config) => (config.source.url.includes('{season}') ? null : 'Source URL needs a {season} placeholder'),
+  validateConfig(config) {
+    if (!config.source.url.includes('{season}')) return 'Source URL needs a {season} placeholder';
+    // Numeric source ids are not display text, so the first one cannot stand in for an abbreviation.
+    if (config.teams.some((t) => t.eras.some((e) => e.abbreviation === undefined))) return 'Every team era needs an abbreviation';
+    return null;
+  },
   seasonUrls: (config, season) => [config.source.url.replaceAll('{season}', String(season))],
   parse(documents, config) {
     const groups = new Map<number, Listing[]>();

@@ -147,6 +147,11 @@ button:hover:not(:disabled) {
 .league-select:focus-visible {
   outline-color: var(--canvas);
 }
+/* Options inherit the topbar's light text; not every browser darkens the popup for color-scheme: dark. */
+.league-select option {
+  background: var(--navy);
+  color: var(--canvas);
+}
 main {
   flex: 1;
   width: 100%;

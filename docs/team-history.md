@@ -17,7 +17,9 @@ identity ranges and aliases.
 - MLB source ids are Stats API numeric team ids, which stay the same across renames and relocations, so
   every era of a franchise lists the same id; for example, `120` for both the Montreal Expos and the
   Washington Nationals.
-- Team estimates resolve names and abbreviations from the model's target season.
+- Team estimates resolve names and abbreviations from the model's target season. An era's abbreviation
+  defaults to its first source id, so NFL eras omit it; MLB eras must set it, such as `MON` for the
+  Montreal Expos and `WSH` for the Washington Nationals.
 
 ## Identity events
 
@@ -35,14 +37,14 @@ era runs through the current season.
 
 ### MLB
 
-| Franchise ID | Source id | Eras |
-| --- | --- | --- |
-| `WSH` | `120` | Montreal Expos, Montreal (1998–2004); Washington Nationals, Washington (2005–) |
-| `LAA` | `108` | Anaheim Angels, Anaheim (1998–2004); Los Angeles Angels of Anaheim, Los Angeles (2005–2015); Los Angeles Angels, Los Angeles (2016–) |
-| `TB` | `139` | Tampa Bay Devil Rays, Tampa Bay (1998–2007); Tampa Bay Rays, Tampa Bay (2008–) |
-| `MIA` | `146` | Florida Marlins, Florida (1998–2011); Miami Marlins, Miami (2012–) |
-| `CLE` | `114` | Cleveland Indians, Cleveland (1998–2021); Cleveland Guardians, Cleveland (2022–) |
-| `ATH` | `133` | Oakland Athletics, Oakland (1998–2024); Athletics, Sacramento (2025–) |
+| Franchise ID | Source id | Abbreviations | Eras |
+| --- | --- | --- | --- |
+| `WSH` | `120` | `MON`, then `WSH` | Montreal Expos, Montreal (1998–2004); Washington Nationals, Washington (2005–) |
+| `LAA` | `108` | `ANA`, then `LAA` | Anaheim Angels, Anaheim (1998–2004); Los Angeles Angels of Anaheim, Los Angeles (2005–2015); Los Angeles Angels, Los Angeles (2016–) |
+| `TB` | `139` | `TB` | Tampa Bay Devil Rays, Tampa Bay (1998–2007); Tampa Bay Rays, Tampa Bay (2008–) |
+| `MIA` | `146` | `FLA`, then `MIA` | Florida Marlins, Florida (1998–2011); Miami Marlins, Miami (2012–) |
+| `CLE` | `114` | `CLE` | Cleveland Indians, Cleveland (1998–2021); Cleveland Guardians, Cleveland (2022–) |
+| `ATH` | `133` | `OAK`, then `ATH` | Oakland Athletics, Oakland (1998–2024); Athletics, Sacramento (2025–) |
 
 ## Registry consistency
 

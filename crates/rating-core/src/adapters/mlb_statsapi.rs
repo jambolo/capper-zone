@@ -214,6 +214,11 @@ impl SourceAdapter for MlbStatsApi {
             cfg.source.url.contains("{season}"),
             "Source URL needs a {{season}} placeholder"
         );
+        // Numeric source ids are not display text, so the first one cannot stand in for an abbreviation.
+        ensure!(
+            cfg.teams.iter().flat_map(|t| &t.eras).all(|e| e.abbreviation.is_some()),
+            "Every team era needs an abbreviation"
+        );
         Ok(())
     }
 }

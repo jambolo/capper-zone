@@ -16,6 +16,8 @@ export const teamSchema = z.object({
         through_season: z.number().int().nullable(),
         name: z.string().min(1),
         location: z.string().min(1),
+        /** Display abbreviation; when absent, the first source id serves. */
+        abbreviation: z.string().min(1).optional(),
         source_ids: z.array(z.string().min(1)).min(1),
       }),
     )

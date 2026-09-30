@@ -117,6 +117,18 @@ it('excludes same-official-date doubleheader games and includes earlier official
   expect(byId('2').prediction).toEqual(byId('3').prediction);
 });
 
+it('abbreviates teams by era rather than by numeric source id', () => {
+  const renamed = (target: number) =>
+    Object.fromEntries(
+      model
+        .teamEstimates(model.fitPosterior({ ...seed(), target_season: target, through_season: target - 1 }, [], config))
+        .filter((t) => t.abbreviation !== t.id)
+        .map((t) => [t.id, t.abbreviation]),
+    );
+  expect(renamed(2026)).toEqual({});
+  expect(renamed(2004)).toEqual({ ATH: 'OAK', LAA: 'ANA', MIA: 'FLA', WSH: 'MON' });
+});
+
 it('publishes a season-resolved source link and the MLB result policy', async () => {
   publish();
   const store = memoryStore();

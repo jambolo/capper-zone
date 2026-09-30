@@ -237,6 +237,18 @@ fn source_url_needs_a_season_placeholder() {
 }
 
 #[test]
+fn every_team_era_needs_a_nonempty_abbreviation() {
+    let mut cfg = mlb();
+    cfg.teams[0].eras[0].abbreviation = None;
+    assert_eq!(
+        cfg.validate().unwrap_err().to_string(),
+        "Every team era needs an abbreviation"
+    );
+    cfg.teams[0].eras[0].abbreviation = Some(String::new());
+    assert_eq!(cfg.validate().unwrap_err().to_string(), "Incomplete team era: ATH");
+}
+
+#[test]
 fn season_incomplete_requires_a_completed_world_series() {
     let adapter = adapter_for("mlb-statsapi").unwrap();
     let (games, _) = parse_fixture();

@@ -31,6 +31,9 @@ pub struct TeamEra {
     pub name: String,
     /// Franchise market/region; individual stadium moves are venue metadata.
     pub location: String,
+    /// Display abbreviation; when absent, the first source id serves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub abbreviation: Option<String>,
     pub source_ids: Vec<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -357,7 +360,10 @@ impl LeagueConfig {
             );
             for (i, era) in team.eras.iter().enumerate() {
                 ensure!(
-                    !era.name.is_empty() && !era.location.is_empty() && !era.source_ids.is_empty(),
+                    !era.name.is_empty()
+                        && !era.location.is_empty()
+                        && era.abbreviation.as_deref() != Some("")
+                        && !era.source_ids.is_empty(),
                     "Incomplete team era: {}",
                     team.id
                 );
