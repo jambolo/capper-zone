@@ -1,5 +1,5 @@
-use crate::{GameFile, HISTORY_SCHEMA_VERSION, LeagueConfig, validate_games};
-use anyhow::{Result, ensure};
+use crate::{GameFile, HISTORY_SCHEMA_VERSION, LeagueConfig, adapter_for, validate_games};
+use anyhow::{Result, bail, ensure};
 use serde::Serialize;
 
 #[derive(Clone, Copy, Serialize)]
@@ -47,18 +47,14 @@ pub fn validate(history: &GameFile, cfg: &LeagueConfig, split: Split) -> Result<
             .all(|g| g.result.is_some()),
         "Evaluation history contains an unreported game; use completed historical seasons"
     );
+    let adapter = adapter_for(&cfg.source.kind)?;
     for season in cfg.history_start..=split.test_end {
         ensure!(
             games.iter().any(|g| g.season == season),
             "Missing completed historical season {season}"
         );
-        if cfg.source.kind == "nflverse-csv" {
-            ensure!(
-                games
-                    .iter()
-                    .any(|g| g.season == season && g.round_label == "SB" && g.result.is_some()),
-                "Season {season} has no completed Super Bowl; refresh history before tuning"
-            );
+        if let Some(reason) = adapter.season_incomplete(&games, season) {
+            bail!("Season {season} has {reason}; refresh history before tuning");
         }
     }
     Ok(())

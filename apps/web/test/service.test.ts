@@ -85,7 +85,7 @@ it('keeps an obsolete cache until a successful refresh replaces it with the curr
   old.schema_version = 1;
   const saved = JSON.stringify(old);
   store.setItem(cacheKey, saved);
-  store.removeItem(snapshotKey);
+  store.removeItem(snapshotKey('nfl'));
   const offline = service(store, () => Promise.reject(new Error('offline')));
   await offline.initialize();
   expect(offline.getState().status).toBe('error');
@@ -105,7 +105,7 @@ it('revalidates published inputs and skips fitting for unchanged normalized data
   await first.initialize();
   const fitted = vi.spyOn(model, 'fitPosterior');
   const progress = vi.fn();
-  expect(readSnapshot(store)?.app_version).toBe(appVersion);
+  expect(readSnapshot(store, 'nfl')?.app_version).toBe(appVersion);
   requests.length = 0;
   const rows = csv.trim().split('\n');
   const second = new PredictionService({
@@ -169,7 +169,7 @@ it.each(['seed only', 'history and seed'])('rebuilds unchanged games after a pub
     }
   }
   expect(second.getState().historical_games).toBe(updated.completed_games);
-  expect(JSON.parse(store.getItem(snapshotKey)!).seed_sha256).toBe(await digest(seedBytes));
+  expect(JSON.parse(store.getItem(snapshotKey('nfl'))!).seed_sha256).toBe(await digest(seedBytes));
 });
 
 it.each([
@@ -183,7 +183,7 @@ it.each([
   const store = memoryStore();
   const first = service(store, async () => csv);
   await first.initialize();
-  const saved = store.getItem(snapshotKey);
+  const saved = store.getItem(snapshotKey('nfl'));
   const cachedGames = store.getItem(cacheKey);
   const updated = seed();
   if (failure === 'history mismatch') published[`${dataBase}/nfl/history.json`] = 'different history';
@@ -204,7 +204,7 @@ it.each([
   await second.initialize();
   expect(second.getState()).toEqual({ ...first.getState(), cached: true, warning: expect.stringContaining(warning) });
   expect(second.getModel()).toEqual(first.getModel());
-  expect(store.getItem(snapshotKey)).toBe(saved);
+  expect(store.getItem(snapshotKey('nfl'))).toBe(saved);
   expect(store.getItem(cacheKey)).toBe(cachedGames);
 });
 
@@ -213,7 +213,7 @@ it.each(['elo-2026.json', 'history.json'])('retains the snapshot if the freshnes
   const store = memoryStore();
   const first = service(store, async () => csv);
   await first.initialize();
-  const saved = store.getItem(snapshotKey);
+  const saved = store.getItem(snapshotKey('nfl'));
   delete published[`${dataBase}/nfl/${file}`];
   const second = service(store, async () => csv);
   await second.initialize();
@@ -223,21 +223,21 @@ it.each(['elo-2026.json', 'history.json'])('retains the snapshot if the freshnes
     warning: expect.stringContaining(`Not published: ${dataBase}/nfl/${file}`),
   });
   expect(second.getModel()).toEqual(first.getModel());
-  expect(store.getItem(snapshotKey)).toBe(saved);
+  expect(store.getItem(snapshotKey('nfl'))).toBe(saved);
 });
 
 it('rebuilds a compatible snapshot once to record its missing seed fingerprint', async () => {
   const { published } = publish();
   const store = memoryStore();
   await service(store, async () => csv).initialize();
-  const legacy = JSON.parse(store.getItem(snapshotKey)!);
+  const legacy = JSON.parse(store.getItem(snapshotKey('nfl'))!);
   delete legacy.seed_sha256;
-  store.setItem(snapshotKey, JSON.stringify(legacy));
-  expect(readSnapshot(store)).not.toBeNull();
+  store.setItem(snapshotKey('nfl'), JSON.stringify(legacy));
+  expect(readSnapshot(store, 'nfl')).not.toBeNull();
   const fitted = vi.spyOn(model, 'fitPosterior');
   await service(store, async () => csv).initialize();
   expect(fitted).toHaveBeenCalled();
-  expect(JSON.parse(store.getItem(snapshotKey)!).seed_sha256).toBe(await digest(published[`${dataBase}/nfl/elo-2026.json`]));
+  expect(JSON.parse(store.getItem(snapshotKey('nfl'))!).seed_sha256).toBe(await digest(published[`${dataBase}/nfl/elo-2026.json`]));
   fitted.mockClear();
   await service(store, async () => csv).initialize();
   expect(fitted).not.toHaveBeenCalled();
@@ -247,10 +247,10 @@ it.each([undefined, '0.0.0', '999.0.0', 42])('rebuilds unchanged inputs when the
   publish();
   const store = memoryStore();
   await service(store, async () => csv).initialize();
-  const saved = JSON.parse(store.getItem(snapshotKey)!);
+  const saved = JSON.parse(store.getItem(snapshotKey('nfl'))!);
   saved.app_version = version;
-  store.setItem(snapshotKey, JSON.stringify(saved));
-  expect(readSnapshot(store)).toBeNull();
+  store.setItem(snapshotKey('nfl'), JSON.stringify(saved));
+  expect(readSnapshot(store, 'nfl')).toBeNull();
   const fitted = vi.spyOn(model, 'fitPosterior');
   const progress = vi.fn(() => expect(second.getModel()).toBeNull());
   const second = new PredictionService({
@@ -267,7 +267,7 @@ it.each([undefined, '0.0.0', '999.0.0', 42])('rebuilds unchanged inputs when the
   expect(fitted).toHaveBeenCalled();
   expect(progress.mock.calls).toHaveLength(2);
   expect(second.getState()).toMatchObject({ status: 'ready', cached: false, warning: null });
-  expect(readSnapshot(store)).toMatchObject({
+  expect(readSnapshot(store, 'nfl')).toMatchObject({
     app_version: appVersion,
     file: { games: saved.file.games },
     model: second.getModel(),
@@ -278,9 +278,9 @@ it.each([true, false])('validates raw game caches independently during an app up
   publish();
   const store = memoryStore();
   await service(store, async () => csv).initialize();
-  const saved = JSON.parse(store.getItem(snapshotKey)!);
+  const saved = JSON.parse(store.getItem(snapshotKey('nfl'))!);
   saved.app_version = '0.0.0';
-  store.setItem(snapshotKey, JSON.stringify(saved));
+  store.setItem(snapshotKey('nfl'), JSON.stringify(saved));
   if (!valid) {
     const games = JSON.parse(store.getItem(cacheKey)!);
     games.schema_version = 1;
@@ -292,11 +292,11 @@ it.each([true, false])('validates raw game caches independently during an app up
   await second.initialize();
   if (valid) {
     expect(second.getState()).toMatchObject({ status: 'ready', cached: true, warning: expect.stringContaining('offline') });
-    expect(readSnapshot(store)?.app_version).toBe(appVersion);
+    expect(readSnapshot(store, 'nfl')?.app_version).toBe(appVersion);
   } else {
     expect(second.getState()).toMatchObject({ status: 'error', error: expect.stringContaining('No valid current-season cache') });
     expect(second.getModel()).toBeNull();
-    expect(store.getItem(snapshotKey)).toBe(JSON.stringify(saved));
+    expect(store.getItem(snapshotKey('nfl'))).toBe(JSON.stringify(saved));
   }
 });
 
@@ -306,10 +306,10 @@ it.each(['fetch', 'validation', 'prediction'])(
     const { published } = publish();
     const store = memoryStore();
     await service(store, async () => csv).initialize();
-    const legacy = JSON.parse(store.getItem(snapshotKey)!);
+    const legacy = JSON.parse(store.getItem(snapshotKey('nfl'))!);
     legacy.app_version = '0.0.0';
     const saved = JSON.stringify(legacy);
-    store.setItem(snapshotKey, saved);
+    store.setItem(snapshotKey('nfl'), saved);
     const savedGames = store.getItem(cacheKey);
     const seedUrl = `${dataBase}/nfl/elo-2026.json`;
     const seedBytes = published[seedUrl];
@@ -325,14 +325,14 @@ it.each(['fetch', 'validation', 'prediction'])(
     expect(second.getState()).toMatchObject({ status: 'error', error: expect.any(String) });
     expect(second.getModel()).toBeNull();
     expect(() => second.predict('SEA', 'SF', true, 'regular')).toThrow('Predictions are not ready');
-    expect(store.getItem(snapshotKey)).toBe(saved);
+    expect(store.getItem(snapshotKey('nfl'))).toBe(saved);
     expect(store.getItem(cacheKey)).toBe(savedGames);
     published[seedUrl] = seedBytes;
     vi.restoreAllMocks();
     const retry = service(store, async () => changed);
     await retry.initialize();
     expect(retry.getState()).toMatchObject({ status: 'ready', cached: false, warning: null });
-    expect(readSnapshot(store)).toMatchObject({ app_version: appVersion, file: { games: [{ result: 'away_win' }, {}] } });
+    expect(readSnapshot(store, 'nfl')).toMatchObject({ app_version: appVersion, file: { games: [{ result: 'away_win' }, {}] } });
   },
 );
 
@@ -361,7 +361,7 @@ it.each([true, false])('refreshes a changed baseline with unchanged games; updat
   });
   await first.initialize();
   expect(first.getState().status).toBe('ready');
-  const saved = store.getItem(snapshotKey);
+  const saved = store.getItem(snapshotKey('nfl'));
   if (available) published[url] = JSON.stringify(updated);
   else delete published[url];
   requests.length = 0;
@@ -371,12 +371,12 @@ it.each([true, false])('refreshes a changed baseline with unchanged games; updat
   expect(second.getState().status).toBe('ready');
   if (!available) {
     expect(second.getState().warning).toContain('initial ratings could not be loaded');
-    expect(store.getItem(snapshotKey)).toBe(saved);
+    expect(store.getItem(snapshotKey('nfl'))).toBe(saved);
     expect(second.getState().teams).toEqual(first.getState().teams);
     return;
   }
   expect(second.getState().warning).toBeNull();
-  expect(readSnapshot(store)?.model.seed.config_sha256).toBe(configHash);
+  expect(readSnapshot(store, 'nfl')?.model.seed.config_sha256).toBe(configHash);
   for (const team of second.getState().teams) {
     const old = first.getState().teams.find((t) => t.id === team.id)!;
     expect(team.initial_elo).toBeCloseTo(old.initial_elo - 500, 10);
@@ -398,8 +398,8 @@ it.each([true, false])('updates configuration metadata only after a successful r
   const store = memoryStore();
   const first = service(store, async () => csv);
   await first.initialize();
-  const snapshot = readSnapshot(store)!;
-  const saved = store.getItem(snapshotKey);
+  const snapshot = readSnapshot(store, 'nfl')!;
+  const saved = store.getItem(snapshotKey('nfl'));
   const updatedConfig = structuredClone(config);
   updatedConfig.name = 'Updated NFL';
   updatedConfig.history_start += 1;
@@ -431,7 +431,7 @@ it.each([true, false])('updates configuration metadata only after a successful r
       warning: expect.stringContaining('initial ratings could not be loaded'),
     });
     expect(second.getModel()).toEqual(snapshot.model);
-    expect(store.getItem(snapshotKey)).toBe(saved);
+    expect(store.getItem(snapshotKey('nfl'))).toBe(saved);
     return;
   }
   const metadata = {
@@ -443,7 +443,7 @@ it.each([true, false])('updates configuration metadata only after a successful r
   };
   expect(second.getState()).toMatchObject({ ...metadata, status: 'ready', cached: false, warning: null });
   expect(second.getModel()?.config).toEqual(updatedConfig);
-  expect(readSnapshot(store)?.state).toMatchObject(metadata);
+  expect(readSnapshot(store, 'nfl')?.state).toMatchObject(metadata);
 });
 
 it('refreshes stale configuration metadata when reusing an unchanged model', async () => {
@@ -451,7 +451,7 @@ it('refreshes stale configuration metadata when reusing an unchanged model', asy
   const store = memoryStore();
   const first = service(store, async () => csv);
   await first.initialize();
-  const snapshot = readSnapshot(store)!;
+  const snapshot = readSnapshot(store, 'nfl')!;
   snapshot.state = {
     ...snapshot.state,
     league: 'Old NFL',
@@ -460,13 +460,13 @@ it('refreshes stale configuration metadata when reusing an unchanged model', asy
     history_start: 1999,
     result_policy: 'Old result policy',
   };
-  store.setItem(snapshotKey, JSON.stringify(snapshot));
+  store.setItem(snapshotKey('nfl'), JSON.stringify(snapshot));
   const fitted = vi.spyOn(model, 'fitPosterior');
   const second = service(store, async () => csv);
   await second.initialize();
   expect(fitted).not.toHaveBeenCalled();
   expect(second.getState()).toEqual(first.getState());
-  expect(readSnapshot(store)?.state).toEqual(first.getState());
+  expect(readSnapshot(store, 'nfl')?.state).toEqual(first.getState());
 });
 
 it('announces changed data while the old predictions are still available, then commits the new snapshot', async () => {
@@ -492,7 +492,7 @@ it('announces changed data while the old predictions are still available, then c
   await second.initialize();
   expect(progress).toEqual(['checking', 'rebuilding']);
   expect(second.predict('SEA', 'SF', true, 'regular').home_win).toBeLessThan(old.home_win);
-  expect(readSnapshot(store)?.file.games[0].result).toBe('away_win');
+  expect(readSnapshot(store, 'nfl')?.file.games[0].result).toBe('away_win');
 });
 
 it('retains the complete previous model and source when a changed-data build fails', async () => {
@@ -500,7 +500,7 @@ it('retains the complete previous model and source when a changed-data build fai
   const store = memoryStore();
   const first = service(store, async () => csv);
   await first.initialize();
-  const saved = store.getItem(snapshotKey);
+  const saved = store.getItem(snapshotKey('nfl'));
   const source = store.getItem(cacheKey);
   delete published[`${dataBase}/nfl/elo-2026.json`];
   const second = service(store, async () => csv.replace('SF,10,SEA,20', 'SF,30,SEA,20'));
@@ -508,7 +508,7 @@ it('retains the complete previous model and source when a changed-data build fai
   expect(second.getState()).toMatchObject({ status: 'ready', cached: true });
   expect(second.getState().warning).toContain('initial ratings could not be loaded');
   expect(second.predict('SEA', 'SF', true, 'regular')).toEqual(first.predict('SEA', 'SF', true, 'regular'));
-  expect(store.getItem(snapshotKey)).toBe(saved);
+  expect(store.getItem(snapshotKey('nfl'))).toBe(saved);
   expect(store.getItem(cacheKey)).toBe(source);
 });
 
@@ -516,15 +516,15 @@ it('rebuilds a corrupt saved model from validated games', async () => {
   publish();
   const store = memoryStore();
   await service(store, async () => csv).initialize();
-  const saved = JSON.parse(store.getItem(snapshotKey)!);
+  const saved = JSON.parse(store.getItem(snapshotKey('nfl'))!);
   saved.model.covariance = [];
-  store.setItem(snapshotKey, JSON.stringify(saved));
+  store.setItem(snapshotKey('nfl'), JSON.stringify(saved));
   const fitted = vi.spyOn(model, 'fitPosterior');
   const second = service(store, async () => csv);
   await second.initialize();
   expect(second.getState().status).toBe('ready');
   expect(fitted).toHaveBeenCalled();
-  expect(readSnapshot(store)).not.toBeNull();
+  expect(readSnapshot(store, 'nfl')).not.toBeNull();
 });
 
 it.each([
@@ -564,7 +564,7 @@ it.each([
   );
   expect(fitted).toHaveBeenCalled();
   expect(progress.mock.calls).toEqual([['checking'], ['rebuilding']]);
-  expect(readSnapshot(store)?.state.training_games).toBe(1);
+  expect(readSnapshot(store, 'nfl')?.state.training_games).toBe(1);
 
   fitted.mockClear();
   progress.mockClear();

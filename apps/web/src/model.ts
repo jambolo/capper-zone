@@ -62,6 +62,22 @@ function solve(l: number[][], rhs: number[]): number[] {
   return x;
 }
 
+/** Compensated (Neumaier) summation for the fit objective. Plain summation over thousands of games leaves rounding
+ * noise above the line search's Armijo slack, so the optimizer could not tell a real decrease from noise.
+ */
+function compensatedSum() {
+  let sum = 0,
+    compensation = 0;
+  return {
+    add(x: number) {
+      const t = sum + x;
+      compensation += Math.abs(sum) >= Math.abs(x) ? sum - t + x : x - t + sum;
+      sum = t;
+    },
+    total: () => sum + compensation,
+  };
+}
+
 /** Refit from immutable preseason priors. Each result is used exactly once.
  * The posterior is approximated by a multivariate Gaussian at its MAP (Laplace).
  * Full covariance retains uncertainty shared between opponents.
@@ -100,7 +116,8 @@ export function fitPosterior(seed: EloSeed, games: Game[], config: LeagueConfig)
   const evaluate = (theta: number[]) => {
     const gradient = theta.map((v, i) => (v - prior[i]) * precision),
       hessian = zeros(ids.length);
-    let objective = theta.reduce((sum, v, i) => sum + ((v - prior[i]) ** 2 * precision) / 2, 0);
+    const objective = compensatedSum();
+    theta.forEach((v, i) => objective.add(((v - prior[i]) ** 2 * precision) / 2));
     for (let i = 0; i < ids.length; i++) hessian[i][i] = precision;
     for (const g of observations) {
       const h = index.get(g.home_team)!,
@@ -112,7 +129,7 @@ export function fitPosterior(seed: EloSeed, games: Game[], config: LeagueConfig)
       const expected = (p.home_win - p.away_win) / 2;
       const first = expected - observed;
       const second = (p.home_win + p.away_win) / 4 - expected ** 2;
-      objective -= Math.log(Math.max(p[g.result!], Number.MIN_VALUE));
+      objective.add(-Math.log(Math.max(p[g.result!], Number.MIN_VALUE)));
       gradient[h] += first;
       gradient[a] -= first;
       hessian[h][h] += second;
@@ -120,7 +137,7 @@ export function fitPosterior(seed: EloSeed, games: Game[], config: LeagueConfig)
       hessian[h][a] -= second;
       hessian[a][h] -= second;
     }
-    return { objective, gradient, hessian };
+    return { objective: objective.total(), gradient, hessian };
   };
   let theta = [...prior],
     iterations = 0,
@@ -203,14 +220,17 @@ export function predict(model: Posterior, home: string, away: string, neutral: b
 export function teamEstimates(model: Posterior) {
   const factor = Math.LN10 / model.config.elo.scale;
   return model.ids
-    .map((id, i) => ({
-      id,
-      name: teamIdentity(model.config, id, model.seed.target_season).name,
-      location: teamIdentity(model.config, id, model.seed.target_season).location,
-      abbreviation: teamIdentity(model.config, id, model.seed.target_season).source_ids[0],
-      initial_elo: model.seed.ratings.find((r) => r.team === id)!.elo,
-      rating: model.config.elo.initial + model.means[i] / factor,
-      sd: Math.sqrt(model.covariance[i][i]) / factor,
-    }))
+    .map((id, i) => {
+      const era = teamIdentity(model.config, id, model.seed.target_season);
+      return {
+        id,
+        name: era.name,
+        location: era.location,
+        abbreviation: era.abbreviation ?? era.source_ids[0],
+        initial_elo: model.seed.ratings.find((r) => r.team === id)!.elo,
+        rating: model.config.elo.initial + model.means[i] / factor,
+        sd: Math.sqrt(model.covariance[i][i]) / factor,
+      };
+    })
     .sort((a, b) => b.rating - a.rating);
 }

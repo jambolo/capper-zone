@@ -53,8 +53,8 @@ export async function readSeedWithHash(
   return { seed, hash: await digest(bytes) };
 }
 
-/** Storage stays on the page because workers cannot access localStorage. The same
- * interface buffers worker changes until the page receives the complete update.
+/** Synchronous key-value store: the page's small-key store, or the refresh worker's in-memory copy of a
+ * league's persisted entries, which the page saves once it receives the complete update.
  */
 export interface Store {
   keys(): string[];
@@ -62,21 +62,6 @@ export interface Store {
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
 }
-export const browserStore = (): Store | null => {
-  try {
-    const probe = '__probe__';
-    localStorage.setItem(probe, probe);
-    localStorage.removeItem(probe);
-    return {
-      keys: () => Object.keys(localStorage),
-      getItem: (key) => localStorage.getItem(key),
-      setItem: (key, value) => localStorage.setItem(key, value),
-      removeItem: (key) => localStorage.removeItem(key),
-    };
-  } catch {
-    return null; // Private mode or blocked storage: run without a persistent cache.
-  }
-};
 export const memoryStore = (): Store => {
   const map = new Map<string, string>();
   return {
@@ -86,6 +71,15 @@ export const memoryStore = (): Store => {
     removeItem: (k) => void map.delete(k),
   };
 };
+
+const currentCachePrefix = (league: string) => `game-results-prediction:${league}:current-`;
+/** Storage key of a league's current-season game cache. */
+export const currentCacheKey = (league: string, season: number) => `${currentCachePrefix(league)}${season}`;
+/** Whether `key` is a current-season game cache key of `league`. */
+export function isCurrentCacheKey(key: string, league: string): boolean {
+  const prefix = currentCachePrefix(league);
+  return key.startsWith(prefix) && /^\d+$/.test(key.slice(prefix.length));
+}
 
 export function readCache(store: Store | null, key: string, config: LeagueConfig, season: number): GameFile | null {
   const raw = store?.getItem(key);

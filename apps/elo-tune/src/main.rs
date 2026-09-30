@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use rating_core::{GameFile, digest, load_config, write_json};
+use rating_core::{GameFile, digest, load_league_config, write_json};
 use std::{fs, io::Write, path::PathBuf};
 
 mod tuning;
@@ -8,8 +8,12 @@ mod tuning;
 #[derive(Parser)]
 #[command(about = "Tune Elo K, home advantage, and offseason regression; report results")]
 struct Args {
-    #[arg(long, default_value = "config/nfl.json")]
-    config: PathBuf,
+    /// League id; the configuration is read from `<config-dir>/<league>.json`.
+    #[arg(long)]
+    league: String,
+    /// Directory containing `<league>.json` league configurations.
+    #[arg(long, default_value = "config")]
+    config_dir: PathBuf,
     #[arg(long, default_value = "data")]
     data_dir: PathBuf,
     /// Also save elo-tuning-report-<league>-<UTC date>.json in this directory.
@@ -28,7 +32,7 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let (cfg, config_bytes) = load_config(&args.config)?;
+    let (cfg, config_bytes) = load_league_config(&args.config_dir, &args.league)?;
     let defaults = cfg.elo_tune.as_ref();
     let split = tuning::Split {
         warmup_start: cfg.history_start,

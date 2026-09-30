@@ -161,6 +161,30 @@ fn solve(l: &[Vec<f64>], rhs: &[f64]) -> Vec<f64> {
     x
 }
 
+/// Compensated (Neumaier) summation for the fit objective. Plain summation over thousands of games leaves rounding
+/// noise above the line search's Armijo slack, so the optimizer could not tell a real decrease from noise.
+#[derive(Default)]
+struct CompensatedSum {
+    sum: f64,
+    compensation: f64,
+}
+
+impl CompensatedSum {
+    fn add(&mut self, x: f64) {
+        let t = self.sum + x;
+        if self.sum.abs() >= x.abs() {
+            self.compensation += (self.sum - t) + x;
+        } else {
+            self.compensation += (x - t) + self.sum;
+        }
+        self.sum = t;
+    }
+
+    fn total(&self) -> f64 {
+        self.sum + self.compensation
+    }
+}
+
 /// Each fit starts from the immutable preseason prior, never the preceding posterior.
 pub fn fit_posterior(seed: &EloSeed, games: &[Game], cfg: &LeagueConfig) -> Result<Posterior> {
     cfg.validate()?;
@@ -215,11 +239,10 @@ pub fn fit_posterior(seed: &EloSeed, games: &[Game], cfg: &LeagueConfig) -> Resu
         for (i, row) in hessian.iter_mut().enumerate() {
             row[i] = precision;
         }
-        let mut objective = theta
-            .iter()
-            .zip(&prior)
-            .map(|(v, p)| (v - p).powi(2) * precision / 2.0)
-            .sum::<f64>();
+        let mut objective = CompensatedSum::default();
+        for (v, p) in theta.iter().zip(&prior) {
+            objective.add((v - p).powi(2) * precision / 2.0);
+        }
         for &(h, a, advantage, nu, outcome) in &observations {
             let p = outcome_probabilities(theta[h] - theta[a] + advantage, nu);
             let observed = match outcome {
@@ -229,7 +252,7 @@ pub fn fit_posterior(seed: &EloSeed, games: &[Game], cfg: &LeagueConfig) -> Resu
             };
             let expected = (p.home_win - p.away_win) / 2.0;
             let second = (p.home_win + p.away_win) / 4.0 - expected.powi(2);
-            objective -= p.for_outcome(outcome).max(f64::from_bits(1)).ln();
+            objective.add(-p.for_outcome(outcome).max(f64::from_bits(1)).ln());
             gradient[h] += expected - observed;
             gradient[a] -= expected - observed;
             hessian[h][h] += second;
@@ -237,7 +260,7 @@ pub fn fit_posterior(seed: &EloSeed, games: &[Game], cfg: &LeagueConfig) -> Resu
             hessian[h][a] -= second;
             hessian[a][h] -= second;
         }
-        (objective, gradient, hessian)
+        (objective.total(), gradient, hessian)
     };
     let mut theta = prior.clone();
     let mut converged = false;

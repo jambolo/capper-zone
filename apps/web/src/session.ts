@@ -1,12 +1,16 @@
 import type { Posterior } from './model.ts';
+import { indexedDbPersistence, type Persistence } from './persistence.ts';
 import { message, type PublicState, type RefreshPhase } from './service.ts';
+import { smallStore } from './small-store.ts';
 import { readSnapshot, snapshotKey } from './snapshot.ts';
-import { browserStore, type Store } from './storage.ts';
+import { isCurrentCacheKey, memoryStore, type Store } from './storage.ts';
 import type { RefreshMessage, RefreshRequest } from './refresh-worker.ts';
 
 export const cooldownMs = 60_000;
-export const attemptKey = 'game-results-prediction:nfl:last-attempt';
-const lockKey = 'game-results-prediction:nfl:refresh';
+/** Storage key of a league's last refresh attempt time. */
+export const attemptKey = (league: string) => `game-results-prediction:${league}:last-attempt`;
+/** Web Locks name that serializes a league's refreshes across tabs. */
+export const lockName = (league: string) => `game-results-prediction:${league}:refresh`;
 export type SessionView = {
   state: PublicState | null;
   model: Posterior | null;
@@ -16,17 +20,25 @@ export type SessionView = {
 };
 
 // Also suppress duplicate mounts when persistent storage is unavailable.
-let lastAttempt = 0;
+const lastAttempts = new Map<string, number>();
 
 export function startSession(options: {
-  configUrl: string;
+  league: string;
+  /** Base URL of the published league configuration files. */
+  configBase: string;
   dataBase: string;
   onChange: (view: SessionView) => void;
+  /** Small-key store for the refresh cooldown; defaults to `smallStore()`. */
   store?: Store | null;
+  /** Snapshot and current-season cache persistence; defaults to IndexedDB. */
+  persistence?: Persistence | null;
   createWorker?: () => Worker;
   locks?: Pick<LockManager, 'request'> | null;
 }): () => void {
-  const store = options.store === undefined ? browserStore() : options.store;
+  const { league } = options;
+  const configUrl = `${options.configBase.replace(/\/$/, '')}/${league}.json`;
+  const store = options.store === undefined ? smallStore() : options.store;
+  const persistence = options.persistence === undefined ? indexedDbPersistence() : options.persistence;
   const locks = options.locks === undefined ? globalThis.navigator?.locks : options.locks;
   const abort = new AbortController();
   let worker: Worker | null = null;
@@ -38,8 +50,28 @@ export function startSession(options: {
     view = { ...view, ...update };
     options.onChange(view);
   };
-  const restore = () => {
-    const snapshot = readSnapshot(store);
+  /** Only this league's snapshot and current-season caches are read, handed to the worker, or saved. */
+  const own = (entries: Record<string, string>) =>
+    Object.fromEntries(Object.entries(entries).filter(([key]) => key === snapshotKey(league) || isCurrentCacheKey(key, league)));
+  const load = async (): Promise<Record<string, string>> => {
+    try {
+      return own((await persistence?.load(league)) ?? {});
+    } catch {
+      return {}; // Continue without persistent storage.
+    }
+  };
+  const save = async (entries: Record<string, string>) => {
+    if (!persistence || !Object.keys(entries).length) return;
+    try {
+      await persistence.save(entries);
+    } catch {
+      /* Keep the computed result when storage is full or disabled. */
+    }
+  };
+  const restore = (entries: Record<string, string>) => {
+    const saved = memoryStore();
+    for (const [key, value] of Object.entries(entries)) saved.setItem(key, value);
+    const snapshot = readSnapshot(saved, league);
     if (snapshot) emit({ state: { ...snapshot.state, cached: true }, model: snapshot.model });
   };
   const fail = (error: string) => {
@@ -47,29 +79,21 @@ export function startSession(options: {
       emit({ phase: 'idle', state: { ...view.state, cached: true, warning: `Update failed. ${error}` } });
     } else emit({ phase: 'idle', error });
   };
-  restore();
+  // Show the saved model while the first check waits for its turn.
+  const restored = load().then(restore);
 
-  const runWorker = () =>
+  const runWorker = (cache: Record<string, string>) =>
     new Promise<void>((resolve) => {
+      let saving: Promise<void> = Promise.resolve();
       const finish = () => {
         worker?.terminate();
         worker = null;
         finishWorker = null;
-        resolve();
+        // Hold the lock until the results are saved, so a waiting tab reloads them.
+        void saving.then(resolve);
       };
       finishWorker = finish;
       try {
-        const cache: Record<string, string> = {};
-        try {
-          for (const key of store?.keys() ?? []) {
-            if (key === snapshotKey || /^game-results-prediction:[^:]+:current-\d+$/.test(key)) {
-              const value = store!.getItem(key);
-              if (value !== null) cache[key] = value;
-            }
-          }
-        } catch {
-          /* Continue without persistent storage. */
-        }
         worker = options.createWorker?.() ?? new Worker(new URL('./refresh.worker.ts', import.meta.url), { type: 'module' });
         worker.onmessage = (event: MessageEvent<RefreshMessage>) => {
           if (abort.signal.aborted) return;
@@ -80,11 +104,7 @@ export function startSession(options: {
           }
           if (result.type === 'error') fail(result.error);
           else {
-            try {
-              for (const [key, value] of Object.entries(result.cache)) store?.setItem(key, value);
-            } catch {
-              /* Keep the computed result when storage is full or disabled. */
-            }
+            saving = save(own(result.cache));
             if (result.state.status === 'error' && view.state?.status === 'ready') {
               fail(result.state.error ?? 'The background update could not finish.');
             } else emit({ state: result.state, model: result.model, phase: 'idle', error: '' });
@@ -100,7 +120,7 @@ export function startSession(options: {
           fail('The background update returned an unreadable result.');
           finish();
         };
-        worker.postMessage({ configUrl: options.configUrl, dataBase: options.dataBase, cache } satisfies RefreshRequest);
+        worker.postMessage({ league, configUrl, dataBase: options.dataBase, cache } satisfies RefreshRequest);
       } catch (e) {
         fail(message(e));
         finish();
@@ -110,11 +130,13 @@ export function startSession(options: {
   const check = async () => {
     if (abort.signal.aborted) return;
     // A different tab may have completed its update while this tab waited for the lock.
-    restore();
+    const cache = await load();
+    if (abort.signal.aborted) return;
+    restore(cache);
     const now = Date.now();
-    let previous = lastAttempt;
+    let previous = lastAttempts.get(league) ?? 0;
     try {
-      const persisted = Number(store?.getItem(attemptKey));
+      const persisted = Number(store?.getItem(attemptKey(league)));
       if (Number.isFinite(persisted)) previous = Math.max(previous, persisted);
     } catch {
       /* Use the current page's cooldown if storage is unavailable. */
@@ -126,18 +148,19 @@ export function startSession(options: {
       timer = setTimeout(() => void run(), delay);
       return;
     }
-    lastAttempt = now;
+    lastAttempts.set(league, now);
     try {
-      store?.setItem(attemptKey, String(now));
+      store?.setItem(attemptKey(league), String(now));
     } catch {
       /* The in-memory guard still applies. */
     }
     emit({ phase: 'checking', retryAt: null, error: '' });
-    await runWorker();
+    await runWorker(cache);
   };
   const run = async () => {
     try {
-      if (locks) await locks.request(lockKey, { signal: abort.signal }, check);
+      await restored;
+      if (locks) await locks.request(lockName(league), { signal: abort.signal }, check);
       else await check();
     } catch (e) {
       if (!abort.signal.aborted) fail(message(e));

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { adapterFor } from '../src/adapters/index.ts';
 import { configSchema, currentSeason, seedSchema, type LeagueConfig } from '../src/contracts.ts';
 import { fitPosterior, predict } from '../src/model.ts';
 import { download, parseSource, usableResults } from '../src/provider.ts';
@@ -8,17 +9,29 @@ import { digest } from '../src/storage.ts';
 import { utcDateBatches } from './backtest-batches.ts';
 
 const root = resolve(import.meta.dirname, '../../..');
+const argv = process.argv.slice(2);
 const { values } = parseArgs({
+  // pnpm forwards the `--` separator of `pnpm backtest -- --league <id>` to the script.
+  args: argv[0] === '--' ? argv.slice(1) : argv,
   options: {
-    config: { type: 'string' },
+    league: { type: 'string' },
+    'config-dir': { type: 'string' },
     'data-dir': { type: 'string' },
     season: { type: 'string' },
   },
 });
+if (values.league === undefined) {
+  console.error('Missing required option --league <id>');
+  console.error('Usage: pnpm -C apps/web backtest -- --league <id> [--config-dir <dir>] [--data-dir <dir>] [--season <year>]');
+  process.exit(2);
+}
+const league = values.league;
+if (!/^[a-zA-Z0-9-]+$/.test(league)) throw new Error(`Unsafe league id: ${league}`);
 
 // The browser app reads these files over HTTP; the backtest reads the same files from disk.
-const configBytes = await readFile(resolve(root, values.config ?? 'config/nfl.json'));
+const configBytes = await readFile(resolve(root, values['config-dir'] ?? 'config', `${league}.json`));
 const config: LeagueConfig = configSchema.parse(JSON.parse(configBytes.toString('utf8')));
+if (config.id !== league) throw new Error(`Configuration id ${config.id} does not match requested league ${league}`);
 const season = Number(values.season ?? currentSeason(config));
 const dir = resolve(root, values['data-dir'] ?? 'data', config.id);
 
@@ -30,7 +43,9 @@ if (seed.config_sha256 !== (await digest(configBytes)))
 if ((await digest(await readFile(resolve(dir, 'history.json')))) !== seed.history_sha256)
   throw new Error('History changed since Elo was calculated; rerun elo-ratings');
 
-const downloaded = parseSource(await download(config.source.url), config).filter((g) => g.season === season);
+const texts: string[] = [];
+for (const url of adapterFor(config).seasonUrls(config, season)) texts.push(await download(url));
+const downloaded = parseSource(texts, config).filter((g) => g.season === season);
 const games = usableResults(downloaded, config);
 if (!games.length) throw new Error('No completed games to evaluate');
 let logLoss = 0,

@@ -34,7 +34,7 @@ it('builds, reuses, and upgrades snapshots through the bundled worker without wi
         if (message.type !== 'progress') complete();
       },
     },
-    request: { configUrl: 'https://test/config/nfl.json', dataBase: 'https://test/data', cache: {} },
+    request: { league: 'nfl', configUrl: 'https://test/config/nfl.json', dataBase: 'https://test/data', cache: {} },
     TextEncoder,
     TextDecoder,
     crypto,
@@ -78,15 +78,15 @@ it('builds, reuses, and upgrades snapshots through the bundled worker without wi
   expect(requests.find((r) => r.url === config.source.url)?.cache).toBe('no-cache');
   expect(requests.find((r) => r.url.endsWith('/elo-2026.json'))?.cache).toBe('no-cache');
   expect(requests.find((r) => r.url.endsWith('/history.json'))?.cache).toBe('no-cache');
-  expect(JSON.parse(result.cache[snapshotKey]).app_version).toBe(appVersion);
+  expect(JSON.parse(result.cache[snapshotKey('nfl')]).app_version).toBe(appVersion);
 
   const reused = await run(result.cache);
   expect(messages.filter((message) => message.type === 'progress')).toEqual([{ type: 'progress', phase: 'checking' }]);
   expect(reused.model).toEqual(result.model);
 
-  const legacy = JSON.parse(result.cache[snapshotKey]);
+  const legacy = JSON.parse(result.cache[snapshotKey('nfl')]);
   legacy.app_version = '0.0.0';
-  const oldCache = { ...result.cache, [snapshotKey]: JSON.stringify(legacy) };
+  const oldCache = { ...result.cache, [snapshotKey('nfl')]: JSON.stringify(legacy) };
   seedAvailable = false;
   const failed = await run(oldCache);
   expect(failed).toMatchObject({ model: null, state: { status: 'error', error: expect.stringContaining('Not published') } });
@@ -96,5 +96,5 @@ it('builds, reuses, and upgrades snapshots through the bundled worker without wi
   const upgraded = await run(failed.cache);
   expect(messages).toContainEqual({ type: 'progress', phase: 'building' });
   expect(upgraded).toMatchObject({ state: { status: 'ready', warning: null }, model: { games_used: 1 } });
-  expect(JSON.parse(upgraded.cache[snapshotKey]).app_version).toBe(appVersion);
+  expect(JSON.parse(upgraded.cache[snapshotKey('nfl')]).app_version).toBe(appVersion);
 });
